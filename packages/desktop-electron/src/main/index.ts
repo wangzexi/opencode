@@ -41,7 +41,15 @@ import { registerIpcHandlers, sendDeepLinks, sendMenuCommand, sendSqliteMigratio
 import { initLogging } from "./logging"
 import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
-import { getDefaultServerUrl, getWslConfig, setDefaultServerUrl, setWslConfig, spawnLocalServer } from "./server"
+import {
+  getDefaultServerUrl,
+  getInboundServerConfig,
+  getWslConfig,
+  setDefaultServerUrl,
+  setInboundServerConfig,
+  setWslConfig,
+  spawnLocalServer,
+} from "./server"
 import {
   createLoadingWindow,
   createMainWindow,
@@ -143,9 +151,11 @@ async function initialize() {
   let overlay: BrowserWindow | null = null
 
   const port = await getSidecarPort()
-  const hostname = "127.0.0.1"
-  const url = `http://${hostname}:${port}`
-  const password = randomUUID()
+  const inbound = getInboundServerConfig()
+  const hostname = inbound.enabled ? "0.0.0.0" : "127.0.0.1"
+  const url = `http://127.0.0.1:${port}`
+  const username = inbound.username.trim() || "opencode"
+  const password = inbound.enabled ? inbound.password : inbound.password || randomUUID()
 
   const loadingTask = (async () => {
     logger.log("sidecar connection started", { url })
@@ -175,11 +185,11 @@ async function initialize() {
     }
 
     logger.log("spawning sidecar", { url })
-    const { listener, health } = await spawnLocalServer(hostname, port, password)
+    const { listener, health } = await spawnLocalServer(hostname, port, username, password)
     server = listener
     serverReady.resolve({
       url,
-      username: "opencode",
+      username,
       password,
     })
 
@@ -251,6 +261,8 @@ registerIpcHandlers({
   consumeInitialDeepLinks: () => pendingDeepLinks.splice(0),
   getDefaultServerUrl: () => getDefaultServerUrl(),
   setDefaultServerUrl: (url) => setDefaultServerUrl(url),
+  getInboundServerConfig: () => getInboundServerConfig(),
+  setInboundServerConfig: (config) => setInboundServerConfig(config),
   getWslConfig: () => Promise.resolve(getWslConfig()),
   setWslConfig: (config: WslConfig) => setWslConfig(config),
   getDisplayBackend: async () => null,
