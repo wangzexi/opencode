@@ -7,12 +7,22 @@ use tokio::task::JoinHandle;
 use crate::{
     cli,
     cli::CommandChild,
-    constants::{DEFAULT_SERVER_URL_KEY, SETTINGS_STORE, WSL_ENABLED_KEY},
+    constants::{
+        DEFAULT_SERVER_URL_KEY, INBOUND_ENABLED_KEY, INBOUND_PASSWORD_KEY, INBOUND_USERNAME_KEY,
+        LEGACY_LAN_ENABLED_KEY, LEGACY_LAN_PASSWORD_KEY, LEGACY_LAN_USERNAME_KEY, SETTINGS_STORE, WSL_ENABLED_KEY,
+    },
 };
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, Default)]
 pub struct WslConfig {
     pub enabled: bool,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, Default)]
+pub struct InboundServerConfig {
+    pub enabled: bool,
+    pub username: String,
+    pub password: String,
 }
 
 #[tauri::command]
@@ -84,23 +94,83 @@ pub fn set_wsl_config(app: AppHandle, config: WslConfig) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn get_inbound_server_config(app: AppHandle) -> Result<InboundServerConfig, String> {
+    let store = app
+        .store(SETTINGS_STORE)
+        .map_err(|e| format!("Failed to open settings store: {}", e))?;
+
+    let enabled = store
+        .get(INBOUND_ENABLED_KEY)
+        .or_else(|| store.get(LEGACY_LAN_ENABLED_KEY))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let username = store
+        .get(INBOUND_USERNAME_KEY)
+        .or_else(|| store.get(LEGACY_LAN_USERNAME_KEY))
+        .and_then(|v| v.as_str().map(String::from))
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or("opencode".to_string());
+    let password = store
+        .get(INBOUND_PASSWORD_KEY)
+        .or_else(|| store.get(LEGACY_LAN_PASSWORD_KEY))
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_default();
+
+    Ok(InboundServerConfig {
+        enabled,
+        username,
+        password,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_inbound_server_config(app: AppHandle, config: InboundServerConfig) -> Result<(), String> {
+    let store = app
+        .store(SETTINGS_STORE)
+        .map_err(|e| format!("Failed to open settings store: {}", e))?;
+
+    store.set(INBOUND_ENABLED_KEY, serde_json::Value::Bool(config.enabled));
+    store.set(
+        INBOUND_USERNAME_KEY,
+        serde_json::Value::String(config.username.trim().to_string()),
+    );
+    store.set(
+        INBOUND_PASSWORD_KEY,
+        serde_json::Value::String(config.password.to_string()),
+    );
+    store
+        .save()
+        .map_err(|e| format!("Failed to save settings: {}", e))?;
+
+    Ok(())
+}
+
 pub fn spawn_local_server(
     app: AppHandle,
     hostname: String,
     port: u32,
+    username: String,
     password: String,
 ) -> (CommandChild, HealthCheck) {
-    let (child, exit) = cli::serve(&app, &hostname, port, &password);
+    let (child, exit) = cli::serve(&app, &hostname, port, &username, &password);
 
     let health_check = HealthCheck(tokio::spawn(async move {
-        let url = format!("http://{hostname}:{port}");
+        let health_hostname = if hostname == "0.0.0.0" {
+            "127.0.0.1".to_string()
+        } else {
+            hostname.clone()
+        };
+        let url = format!("http://{health_hostname}:{port}");
         let timestamp = Instant::now();
 
         let ready = async {
             loop {
                 tokio::time::sleep(Duration::from_millis(100)).await;
 
-                if check_health(&url, Some(&password)).await {
+                if check_health(&url, Some(&username), Some(&password)).await {
                     tracing::info!(elapsed = ?timestamp.elapsed(), "Server ready");
                     return Ok(());
                 }
@@ -128,7 +198,7 @@ pub fn spawn_local_server(
 
 pub struct HealthCheck(pub JoinHandle<Result<(), String>>);
 
-async fn check_health(url: &str, password: Option<&str>) -> bool {
+async fn check_health(url: &str, username: Option<&str>, password: Option<&str>) -> bool {
     let Ok(url) = reqwest::Url::parse(url) else {
         return false;
     };
@@ -159,8 +229,8 @@ async fn check_health(url: &str, password: Option<&str>) -> bool {
 
     let mut req = client.get(health_url);
 
-    if let Some(password) = password {
-        req = req.basic_auth("opencode", Some(password));
+    if let (Some(username), Some(password)) = (username, password) {
+        req = req.basic_auth(username, Some(password));
     }
 
     req.send()

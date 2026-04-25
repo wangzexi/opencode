@@ -367,6 +367,12 @@ const createPlatform = (): Platform => {
     setDefaultServer: async (url: string | null) => {
       await commands.setDefaultServerUrl(url)
     },
+    getInboundServerConfig: async () => {
+      return commands.getInboundServerConfig()
+    },
+    setInboundServerConfig: async (config) => {
+      await commands.setInboundServerConfig(config)
+    },
 
     getDisplayBackend: async () => {
       const result = await commands.getDisplayBackend().catch(() => null)

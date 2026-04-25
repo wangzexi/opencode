@@ -10,6 +10,8 @@ export const commands = {
 	awaitInitialization: (events: Channel) => __TAURI_INVOKE<ServerReadyData>("await_initialization", { events }),
 	getDefaultServerUrl: () => __TAURI_INVOKE<string | null>("get_default_server_url"),
 	setDefaultServerUrl: (url: string | null) => __TAURI_INVOKE<null>("set_default_server_url", { url }),
+	getInboundServerConfig: () => __TAURI_INVOKE<InboundServerConfig>("get_inbound_server_config"),
+	setInboundServerConfig: (config: InboundServerConfig) => __TAURI_INVOKE<null>("set_inbound_server_config", { config }),
 	getWslConfig: () => __TAURI_INVOKE<WslConfig>("get_wsl_config"),
 	setWslConfig: (config: WslConfig) => __TAURI_INVOKE<null>("set_wsl_config", { config }),
 	getDisplayBackend: () => __TAURI_INVOKE<"wayland" | "auto" | null>("get_display_backend"),
@@ -33,6 +35,12 @@ export type InitStep = { phase: "server_waiting" } | { phase: "sqlite_waiting" }
 export type LinuxDisplayBackend = "wayland" | "auto";
 
 export type LoadingWindowComplete = null;
+
+export type InboundServerConfig = {
+		enabled: boolean,
+		username: string,
+		password: string,
+	};
 
 export type ServerReadyData = {
 		url: string,
@@ -64,4 +72,3 @@ function makeEvent<T>(name: string) {
 
     return Object.assign(fn, base);
 }
-

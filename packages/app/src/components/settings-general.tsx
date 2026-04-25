@@ -1,4 +1,4 @@
-import { Component, Show, createMemo, createResource, onMount, type JSX } from "solid-js"
+import { Component, Show, createEffect, createMemo, createResource, onMount, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode-ai/ui/button"
 import { Icon } from "@opencode-ai/ui/icon"
@@ -81,6 +81,10 @@ export const SettingsGeneral: Component = () => {
 
   const [store, setStore] = createStore({
     checking: false,
+    inboundEnabled: false,
+    inboundUsername: "opencode",
+    inboundPassword: "",
+    inboundSaving: false,
   })
 
   const linux = createMemo(() => platform.platform === "desktop" && platform.os === "linux")
@@ -110,6 +114,24 @@ export const SettingsGeneral: Component = () => {
     permission.disableAutoAccept(params.id, value)
   }
   const desktop = createMemo(() => platform.platform === "desktop")
+  const [inboundConfig, inboundConfigActions] = createResource(() => platform.getInboundServerConfig?.())
+
+  createEffect(() => {
+    const config = inboundConfig()
+    if (!config) return
+    setStore("inboundEnabled", config.enabled)
+    setStore("inboundUsername", config.username)
+    setStore("inboundPassword", config.password)
+  })
+
+  const saveInboundConfig = (config: { enabled: boolean; username: string; password: string }) => {
+    if (!platform.setInboundServerConfig) return
+    setStore("inboundSaving", true)
+    void platform
+      .setInboundServerConfig(config)
+      .then(() => inboundConfigActions.refetch())
+      .finally(() => setStore("inboundSaving", false))
+  }
 
   const check = () => {
     if (!platform.checkUpdate) return
@@ -633,7 +655,96 @@ export const SettingsGeneral: Component = () => {
     </div>
   )
 
-  console.log(import.meta.env)
+  const DesktopNetworkSection = () => (
+    <Show when={desktop() && platform.getInboundServerConfig && platform.setInboundServerConfig}>
+      <div class="flex flex-col gap-1">
+        <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.network")}</h3>
+        <SettingsList>
+          <SettingsRow
+            title={language.t("settings.general.row.inboundAccess.title")}
+            description={language.t("settings.general.row.inboundAccess.description")}
+          >
+            <div data-action="settings-inbound-access">
+              <Switch
+                checked={store.inboundEnabled}
+                disabled={inboundConfig.state === "pending" || store.inboundSaving}
+                onChange={(checked) => {
+                  if (checked && (!store.inboundUsername.trim() || !store.inboundPassword)) {
+                    showToast({
+                      title: language.t("common.requestFailed"),
+                      description: language.t("settings.general.row.inbound.missingCredentials"),
+                    })
+                    return
+                  }
+                  setStore("inboundEnabled", checked)
+                  saveInboundConfig({
+                    enabled: checked,
+                    username: store.inboundUsername.trim() || "opencode",
+                    password: store.inboundPassword,
+                  })
+                }}
+              />
+            </div>
+          </SettingsRow>
+          <SettingsRow
+            title={language.t("settings.general.row.inboundUsername.title")}
+            description={language.t("settings.general.row.inboundUsername.description")}
+          >
+            <div class="w-full sm:w-[220px]">
+              <TextField
+                data-action="settings-inbound-username"
+                label={language.t("settings.general.row.inboundUsername.title")}
+                hideLabel
+                type="text"
+                value={store.inboundUsername}
+                onChange={(value) => setStore("inboundUsername", value)}
+                placeholder="opencode"
+                spellcheck={false}
+                autocorrect="off"
+                autocomplete="off"
+                autocapitalize="off"
+                class="text-12-regular"
+              />
+            </div>
+          </SettingsRow>
+          <SettingsRow
+            title={language.t("settings.general.row.inboundPassword.title")}
+            description={language.t("settings.general.row.inboundPassword.description")}
+          >
+            <div class="flex gap-2 items-center">
+              <div class="w-full sm:w-[220px]">
+                <TextField
+                  data-action="settings-inbound-password"
+                  label={language.t("settings.general.row.inboundPassword.title")}
+                  hideLabel
+                  type="password"
+                  value={store.inboundPassword}
+                  onChange={(value) => setStore("inboundPassword", value)}
+                  placeholder={language.t("settings.general.row.inboundPassword.placeholder")}
+                  class="text-12-regular"
+                />
+              </div>
+              <Button
+                size="small"
+                variant="secondary"
+                disabled={store.inboundSaving || !store.inboundUsername.trim() || !store.inboundPassword}
+                onClick={() =>
+                  saveInboundConfig({
+                    enabled: store.inboundEnabled,
+                    username: store.inboundUsername.trim(),
+                    password: store.inboundPassword,
+                  })
+                }
+              >
+                {language.t("settings.general.row.inbound.save")}
+              </Button>
+            </div>
+          </SettingsRow>
+        </SettingsList>
+      </div>
+    </Show>
+  )
+
   return (
     <div class="flex flex-col h-full overflow-y-auto no-scrollbar px-4 pb-10 sm:px-10 sm:pb-10">
       <div class="sticky top-0 z-10 bg-[linear-gradient(to_bottom,var(--surface-stronger-non-alpha)_calc(100%_-_24px),transparent)]">
@@ -650,6 +761,7 @@ export const SettingsGeneral: Component = () => {
         <NotificationsSection />
 
         <SoundsSection />
+        <DesktopNetworkSection />
 
         {/*<Show when={platform.platform === "desktop" && platform.os === "windows" && platform.getWslEnabled}>
           {(_) => {

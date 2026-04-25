@@ -33,6 +33,7 @@ use tokio::{
 
 use crate::cli::{sqlite_migration::SqliteMigrationProgress, sync_cli};
 use crate::constants::*;
+use crate::server::InboundServerConfig;
 use crate::windows::{LoadingWindow, MainWindow};
 
 #[derive(Clone, serde::Serialize, specta::Type, Debug)]
@@ -381,6 +382,8 @@ fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             server::set_default_server_url,
             server::get_wsl_config,
             server::set_wsl_config,
+            server::get_inbound_server_config,
+            server::set_inbound_server_config,
             get_display_backend,
             set_display_backend,
             markdown::parse_markdown_command,
@@ -424,20 +427,41 @@ async fn initialize(app: AppHandle) {
     spawn_cli_sync_task(app.clone());
 
     // Spawn sidecar immediately - credentials are known before health check
+    let inbound = server::get_inbound_server_config(app.clone()).unwrap_or(InboundServerConfig {
+        enabled: false,
+        username: "opencode".to_string(),
+        password: String::new(),
+    });
     let port = get_sidecar_port();
-    let hostname = "127.0.0.1";
-    let url = format!("http://{hostname}:{port}");
-    let password = uuid::Uuid::new_v4().to_string();
+    let hostname = if inbound.enabled { "0.0.0.0" } else { "127.0.0.1" };
+    let url = format!("http://127.0.0.1:{port}");
+    let username = if inbound.username.trim().is_empty() {
+        "opencode".to_string()
+    } else {
+        inbound.username
+    };
+    let password = if inbound.enabled {
+        inbound.password
+    } else if inbound.password.is_empty() {
+        uuid::Uuid::new_v4().to_string()
+    } else {
+        inbound.password
+    };
 
     tracing::info!("Spawning sidecar on {url}");
-    let (child, health_check) =
-        server::spawn_local_server(app.clone(), hostname.to_string(), port, password.clone());
+    let (child, health_check) = server::spawn_local_server(
+        app.clone(),
+        hostname.to_string(),
+        port,
+        username.clone(),
+        password.clone(),
+    );
 
     // Make sidecar credentials available immediately (before health check completes)
     let (ready_tx, ready_rx) = oneshot::channel();
     let _ = ready_tx.send(ServerReadyData {
         url: url.clone(),
-        username: Some("opencode".to_string()),
+        username: Some(username),
         password: Some(password),
     });
     app.manage(SidecarReady(ready_rx.shared()));
