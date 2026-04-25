@@ -554,6 +554,7 @@ pub fn serve(
     app: &AppHandle,
     hostname: &str,
     port: u32,
+    username: &str,
     password: &str,
 ) -> (CommandChild, oneshot::Receiver<TerminatedPayload>) {
     let (exit_tx, exit_rx) = oneshot::channel::<TerminatedPayload>();
@@ -561,7 +562,7 @@ pub fn serve(
     tracing::info!(port, "Spawning sidecar");
 
     let envs = [
-        ("OPENCODE_SERVER_USERNAME", "opencode".to_string()),
+        ("OPENCODE_SERVER_USERNAME", username.to_string()),
         ("OPENCODE_SERVER_PASSWORD", password.to_string()),
     ];
 

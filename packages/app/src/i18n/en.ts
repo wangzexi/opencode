@@ -725,6 +725,7 @@ export const dict = {
   "settings.general.section.sounds": "Sound effects",
   "settings.general.section.feed": "Feed",
   "settings.general.section.display": "Display",
+  "settings.general.section.network": "Network",
 
   "settings.general.row.language.title": "Language",
   "settings.general.row.language.description": "Change the display language for OpenCode",
@@ -770,6 +771,17 @@ export const dict = {
   "settings.general.row.wayland.description": "Disable X11 fallback on Wayland. Requires restart.",
   "settings.general.row.wayland.tooltip":
     "On Linux with mixed refresh-rate monitors, native Wayland can be more stable.",
+  "settings.general.row.inboundAccess.title": "Allow inbound connections",
+  "settings.general.row.inboundAccess.description":
+    "Allow OpenCode server access from other devices on your network. Requires restart.",
+  "settings.general.row.inboundUsername.title": "Inbound username",
+  "settings.general.row.inboundUsername.description": "Username required for inbound clients.",
+  "settings.general.row.inboundPassword.title": "Inbound password",
+  "settings.general.row.inboundPassword.description": "Password required for inbound clients.",
+  "settings.general.row.inboundPassword.placeholder": "Enter password",
+  "settings.general.row.inbound.save": "Save",
+  "settings.general.row.inbound.missingCredentials":
+    "Set both inbound username and password before enabling inbound connections.",
 
   "settings.general.row.releaseNotes.title": "Release notes",
   "settings.general.row.releaseNotes.description": "Show What's New popups after updates",
