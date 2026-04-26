@@ -106,7 +106,8 @@ jobs:
         working-directory: packages/desktop-electron
         run: bun run build
 
-      - name: Package
+      - name: Package macOS (signed)
+        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE != '' && env.APPLE_CERTIFICATE_PASSWORD != ''
         working-directory: packages/desktop-electron
         timeout-minutes: 90
         env:
@@ -115,6 +116,20 @@ jobs:
           APPLE_API_KEY: ${{ runner.temp }}/apple-api-key.p8
           APPLE_API_KEY_ID: ${{ env.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ env.APPLE_API_ISSUER }}
+        run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
+
+      - name: Package macOS (unsigned)
+        if: runner.os == 'macOS' && (env.APPLE_CERTIFICATE == '' || env.APPLE_CERTIFICATE_PASSWORD == '')
+        working-directory: packages/desktop-electron
+        timeout-minutes: 90
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        working-directory: packages/desktop-electron
+        timeout-minutes: 90
         run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
 
       - name: Verify signed Windows artifacts
