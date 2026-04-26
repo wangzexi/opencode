@@ -1,4 +1,4 @@
-import { Component, Show, createEffect, createMemo, createResource, onMount, type JSX } from "solid-js"
+import { Component, Show, createEffect, createMemo, createResource, createSignal, onMount, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode-ai/ui/button"
 import { Icon } from "@opencode-ai/ui/icon"
@@ -92,8 +92,9 @@ export const SettingsGeneral: Component = () => {
   const [store, setStore] = createStore({
     checking: false,
     inboundEnabled: false,
-    inboundUsername: "opencode",
+    inboundUsername: "",
     inboundPassword: "",
+    inboundPort: "",
     inboundSaving: false,
   })
 
@@ -124,23 +125,99 @@ export const SettingsGeneral: Component = () => {
     permission.disableAutoAccept(params.id, value)
   }
   const desktop = createMemo(() => platform.platform === "desktop")
-  const [inboundConfig, inboundConfigActions] = createResource(() => platform.getInboundServerConfig?.())
+  const [inboundConfig] = createResource(() => platform.getInboundServerConfig?.())
+  const [inboundRuntimeConfig] = createResource(() => platform.getInboundRuntimeServerConfig?.())
+  const [inboundHydrated, setInboundHydrated] = createSignal(false)
+  const [savedInboundConfig, setSavedInboundConfig] = createSignal<{
+    enabled: boolean
+    username: string
+    password: string
+    port: number | null
+  }>()
 
   createEffect(() => {
+    if (inboundHydrated()) return
+
     const config = inboundConfig()
     if (!config) return
     setStore("inboundEnabled", config.enabled)
     setStore("inboundUsername", config.username)
     setStore("inboundPassword", config.password)
+    setStore("inboundPort", config.port === null ? "" : String(config.port))
+    setSavedInboundConfig(config)
+    setInboundHydrated(true)
+  })
+  const inboundRuntime = createMemo(() => platform.inboundRuntimeServerConfig?.() ?? inboundRuntimeConfig())
+  const inboundUsernamePlaceholder = createMemo(() => inboundRuntime()?.username ?? "opencode")
+  const inboundPasswordPlaceholder = createMemo(
+    () => inboundRuntime()?.password ?? language.t("settings.general.row.inboundPassword.placeholder"),
+  )
+  const inboundPortPlaceholder = createMemo(() => {
+    const port = inboundRuntime()?.port
+    return typeof port === "number" ? String(port) : ""
   })
 
-  const saveInboundConfig = (config: { enabled: boolean; username: string; password: string }) => {
+  const parseInboundPort = (value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+
+    const parsed = Number.parseInt(trimmed, 10)
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) return undefined
+
+    return parsed
+  }
+
+  const saveInboundConfig = (config: { enabled: boolean; username: string; password: string; port: string }) => {
     if (!platform.setInboundServerConfig) return
+
+    const current = savedInboundConfig() ?? inboundConfig.latest
+    const port = parseInboundPort(config.port)
+    if (config.enabled && port === undefined) {
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: language.t("settings.general.row.inboundPort.invalid"),
+      })
+      return
+    }
+
+    const next = {
+      enabled: config.enabled,
+      username: config.username.trim(),
+      password: config.password,
+      port: port ?? null,
+    }
+
+    const changed =
+      !current ||
+      current.enabled !== next.enabled ||
+      current.username !== next.username ||
+      current.password !== next.password ||
+      current.port !== next.port
+
+    if (!changed) return
+
     setStore("inboundSaving", true)
     void platform
-      .setInboundServerConfig(config)
-      .then(() => inboundConfigActions.refetch())
+      .setInboundServerConfig(next)
+      .then(() => {
+        setSavedInboundConfig(next)
+      })
       .finally(() => setStore("inboundSaving", false))
+  }
+
+  const saveInboundOnBlur = () => {
+    saveInboundConfig({
+      enabled: store.inboundEnabled,
+      username: store.inboundUsername,
+      password: store.inboundPassword,
+      port: store.inboundPort,
+    })
+  }
+
+  const saveInboundOnEnter = (event: KeyboardEvent) => {
+    if (event.key !== "Enter") return
+    event.preventDefault()
+    saveInboundOnBlur()
   }
 
   const check = () => {
@@ -764,77 +841,87 @@ export const SettingsGeneral: Component = () => {
                 checked={store.inboundEnabled}
                 disabled={inboundConfig.state === "pending" || store.inboundSaving}
                 onChange={(checked) => {
-                  if (checked && (!store.inboundUsername.trim() || !store.inboundPassword)) {
-                    showToast({
-                      title: language.t("common.requestFailed"),
-                      description: language.t("settings.general.row.inbound.missingCredentials"),
-                    })
-                    return
-                  }
                   setStore("inboundEnabled", checked)
                   saveInboundConfig({
                     enabled: checked,
-                    username: store.inboundUsername.trim() || "opencode",
+                    username: store.inboundUsername,
                     password: store.inboundPassword,
+                    port: store.inboundPort,
                   })
                 }}
               />
             </div>
           </SettingsRow>
-          <SettingsRow
-            title={language.t("settings.general.row.inboundUsername.title")}
-            description={language.t("settings.general.row.inboundUsername.description")}
-          >
-            <div class="w-full sm:w-[220px]">
-              <TextField
-                data-action="settings-inbound-username"
-                label={language.t("settings.general.row.inboundUsername.title")}
-                hideLabel
-                type="text"
-                value={store.inboundUsername}
-                onChange={(value) => setStore("inboundUsername", value)}
-                placeholder="opencode"
-                spellcheck={false}
-                autocorrect="off"
-                autocomplete="off"
-                autocapitalize="off"
-                class="text-12-regular"
-              />
-            </div>
-          </SettingsRow>
-          <SettingsRow
-            title={language.t("settings.general.row.inboundPassword.title")}
-            description={language.t("settings.general.row.inboundPassword.description")}
-          >
-            <div class="flex gap-2 items-center">
+          <Show when={store.inboundEnabled}>
+            <SettingsRow
+              title={language.t("settings.general.row.inboundUsername.title")}
+              description={language.t("settings.general.row.inboundUsername.description")}
+            >
+              <div class="w-full sm:w-[220px]">
+                <TextField
+                  data-action="settings-inbound-username"
+                  label={language.t("settings.general.row.inboundUsername.title")}
+                  hideLabel
+                  type="text"
+                  value={store.inboundUsername || ""}
+                  onChange={(value) => setStore("inboundUsername", value)}
+                  onBlur={saveInboundOnBlur}
+                  onKeyDown={saveInboundOnEnter}
+                  placeholder={inboundUsernamePlaceholder()}
+                  spellcheck={false}
+                  autocorrect="off"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  class="text-12-regular"
+                />
+              </div>
+            </SettingsRow>
+            <SettingsRow
+              title={language.t("settings.general.row.inboundPassword.title")}
+              description={language.t("settings.general.row.inboundPassword.description")}
+            >
               <div class="w-full sm:w-[220px]">
                 <TextField
                   data-action="settings-inbound-password"
                   label={language.t("settings.general.row.inboundPassword.title")}
                   hideLabel
-                  type="password"
-                  value={store.inboundPassword}
+                  type="text"
+                  value={store.inboundPassword || ""}
                   onChange={(value) => setStore("inboundPassword", value)}
-                  placeholder={language.t("settings.general.row.inboundPassword.placeholder")}
+                  onBlur={saveInboundOnBlur}
+                  onKeyDown={saveInboundOnEnter}
+                  placeholder={inboundPasswordPlaceholder()}
                   class="text-12-regular"
                 />
               </div>
-              <Button
-                size="small"
-                variant="secondary"
-                disabled={store.inboundSaving || !store.inboundUsername.trim() || !store.inboundPassword}
-                onClick={() =>
-                  saveInboundConfig({
-                    enabled: store.inboundEnabled,
-                    username: store.inboundUsername.trim(),
-                    password: store.inboundPassword,
-                  })
-                }
-              >
-                {language.t("settings.general.row.inbound.save")}
-              </Button>
-            </div>
-          </SettingsRow>
+            </SettingsRow>
+            <SettingsRow
+              title={language.t("settings.general.row.inboundPort.title")}
+              description={language.t("settings.general.row.inboundPort.description")}
+            >
+              <div class="flex gap-2 items-center">
+                <div class="w-full sm:w-[220px]">
+                  <TextField
+                    data-action="settings-inbound-port"
+                    label={language.t("settings.general.row.inboundPort.title")}
+                    hideLabel
+                    type="text"
+                    inputMode="numeric"
+                    value={store.inboundPort || ""}
+                    onChange={(value) => setStore("inboundPort", value)}
+                    onBlur={saveInboundOnBlur}
+                    onKeyDown={saveInboundOnEnter}
+                    placeholder={inboundPortPlaceholder()}
+                    spellcheck={false}
+                    autocorrect="off"
+                    autocomplete="off"
+                    autocapitalize="off"
+                    class="text-12-regular"
+                  />
+                </div>
+              </div>
+            </SettingsRow>
+          </Show>
         </SettingsList>
       </div>
     </Show>

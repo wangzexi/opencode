@@ -16,6 +16,7 @@ const api: ElectronAPI = {
   getDefaultServerUrl: () => ipcRenderer.invoke("get-default-server-url"),
   setDefaultServerUrl: (url) => ipcRenderer.invoke("set-default-server-url", url),
   getInboundServerConfig: () => ipcRenderer.invoke("get-inbound-server-config"),
+  getInboundRuntimeServerConfig: () => ipcRenderer.invoke("get-inbound-runtime-server-config"),
   setInboundServerConfig: (config) => ipcRenderer.invoke("set-inbound-server-config", config),
   getWslConfig: () => ipcRenderer.invoke("get-wsl-config"),
   setWslConfig: (config) => ipcRenderer.invoke("set-wsl-config", config),

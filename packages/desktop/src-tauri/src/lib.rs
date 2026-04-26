@@ -33,7 +33,7 @@ use tokio::{
 
 use crate::cli::{sqlite_migration::SqliteMigrationProgress, sync_cli};
 use crate::constants::*;
-use crate::server::InboundServerConfig;
+use crate::server::{set_runtime_inbound_server_config, InboundServerConfig};
 use crate::windows::{LoadingWindow, MainWindow};
 
 #[derive(Clone, serde::Serialize, specta::Type, Debug)]
@@ -41,6 +41,7 @@ struct ServerReadyData {
     url: String,
     username: Option<String>,
     password: Option<String>,
+    port: u32,
 }
 
 #[derive(Clone, Copy, serde::Serialize, specta::Type, Debug)]
@@ -383,6 +384,7 @@ fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             server::get_wsl_config,
             server::set_wsl_config,
             server::get_inbound_server_config,
+            server::get_inbound_runtime_server_config,
             server::set_inbound_server_config,
             get_display_backend,
             set_display_backend,
@@ -431,8 +433,13 @@ async fn initialize(app: AppHandle) {
         enabled: false,
         username: "opencode".to_string(),
         password: String::new(),
+        port: None,
     });
-    let port = get_sidecar_port();
+    let port = if inbound.enabled {
+        inbound.port.unwrap_or_else(get_sidecar_port)
+    } else {
+        get_sidecar_port()
+    };
     let hostname = if inbound.enabled { "0.0.0.0" } else { "127.0.0.1" };
     let url = format!("http://127.0.0.1:{port}");
     let username = if inbound.username.trim().is_empty() {
@@ -440,13 +447,17 @@ async fn initialize(app: AppHandle) {
     } else {
         inbound.username
     };
-    let password = if inbound.enabled {
-        inbound.password
-    } else if inbound.password.is_empty() {
+    let password = if inbound.password.trim().is_empty() {
         uuid::Uuid::new_v4().to_string()
     } else {
         inbound.password
     };
+    set_runtime_inbound_server_config(InboundServerConfig {
+        enabled: inbound.enabled,
+        username: username.clone(),
+        password: password.clone(),
+        port: Some(port),
+    });
 
     tracing::info!("Spawning sidecar on {url}");
     let (child, health_check) = server::spawn_local_server(
@@ -463,6 +474,7 @@ async fn initialize(app: AppHandle) {
         url: url.clone(),
         username: Some(username),
         password: Some(password),
+        port,
     });
     app.manage(SidecarReady(ready_rx.shared()));
     app.manage(ServerState {

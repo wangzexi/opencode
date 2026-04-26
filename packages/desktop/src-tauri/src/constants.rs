@@ -6,9 +6,7 @@ pub const WSL_ENABLED_KEY: &str = "wslEnabled";
 pub const INBOUND_ENABLED_KEY: &str = "inboundEnabled";
 pub const INBOUND_USERNAME_KEY: &str = "inboundUsername";
 pub const INBOUND_PASSWORD_KEY: &str = "inboundPassword";
-pub const LEGACY_LAN_ENABLED_KEY: &str = "lanEnabled";
-pub const LEGACY_LAN_USERNAME_KEY: &str = "lanUsername";
-pub const LEGACY_LAN_PASSWORD_KEY: &str = "lanPassword";
+pub const INBOUND_PORT_KEY: &str = "inboundPort";
 pub const UPDATER_ENABLED: bool = option_env!("TAURI_SIGNING_PRIVATE_KEY").is_some();
 
 pub fn window_state_flags() -> StateFlags {

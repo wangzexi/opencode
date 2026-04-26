@@ -370,6 +370,9 @@ const createPlatform = (): Platform => {
     getInboundServerConfig: async () => {
       return commands.getInboundServerConfig()
     },
+    getInboundRuntimeServerConfig: async () => {
+      return commands.getInboundRuntimeServerConfig()
+    },
     setInboundServerConfig: async (config) => {
       await commands.setInboundServerConfig(config)
     },

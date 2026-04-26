@@ -27,6 +27,7 @@ type Deps = {
   getDefaultServerUrl: () => Promise<string | null> | string | null
   setDefaultServerUrl: (url: string | null) => Promise<void> | void
   getInboundServerConfig: () => Promise<InboundServerConfig> | InboundServerConfig
+  getInboundRuntimeServerConfig: () => Promise<InboundServerConfig> | InboundServerConfig
   setInboundServerConfig: (config: InboundServerConfig) => Promise<void> | void
   getWslConfig: () => Promise<WslConfig>
   setWslConfig: (config: WslConfig) => Promise<void> | void
@@ -56,6 +57,7 @@ export function registerIpcHandlers(deps: Deps) {
     deps.setDefaultServerUrl(url),
   )
   ipcMain.handle("get-inbound-server-config", () => deps.getInboundServerConfig())
+  ipcMain.handle("get-inbound-runtime-server-config", () => deps.getInboundRuntimeServerConfig())
   ipcMain.handle("set-inbound-server-config", (_event: IpcMainInvokeEvent, config: InboundServerConfig) =>
     deps.setInboundServerConfig(config),
   )

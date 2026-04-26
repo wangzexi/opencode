@@ -3,6 +3,7 @@ import {
   DEFAULT_SERVER_URL_KEY,
   INBOUND_ENABLED_KEY,
   INBOUND_PASSWORD_KEY,
+  INBOUND_PORT_KEY,
   INBOUND_USERNAME_KEY,
   WSL_ENABLED_KEY,
 } from "./constants"
@@ -10,9 +11,15 @@ import { getUserShell, loadShellEnv } from "./shell-env"
 import { getStore } from "./store"
 
 export type WslConfig = { enabled: boolean }
-export type InboundServerConfig = { enabled: boolean; username: string; password: string }
+export type InboundServerConfig = { enabled: boolean; username: string; password: string; port: number | null }
 
 export type HealthCheck = { wait: Promise<void> }
+
+let runtimeInboundServerConfig: InboundServerConfig | null = null
+
+export function setRuntimeInboundServerConfig(config: InboundServerConfig) {
+  runtimeInboundServerConfig = config
+}
 
 export function getDefaultServerUrl(): string | null {
   const value = getStore().get(DEFAULT_SERVER_URL_KEY)
@@ -38,20 +45,32 @@ export function setWslConfig(config: WslConfig) {
 }
 
 export function getInboundServerConfig(): InboundServerConfig {
-  const enabled = getStore().get(INBOUND_ENABLED_KEY) ?? getStore().get("lanEnabled")
-  const username = getStore().get(INBOUND_USERNAME_KEY) ?? getStore().get("lanUsername")
-  const password = getStore().get(INBOUND_PASSWORD_KEY) ?? getStore().get("lanPassword")
+  const enabled = getStore().get(INBOUND_ENABLED_KEY)
+  const username = getStore().get(INBOUND_USERNAME_KEY)
+  const password = getStore().get(INBOUND_PASSWORD_KEY)
+  const port = getStore().get(INBOUND_PORT_KEY)
   return {
     enabled: typeof enabled === "boolean" ? enabled : false,
-    username: typeof username === "string" && username.trim() ? username : "opencode",
+    username: typeof username === "string" ? username : "",
     password: typeof password === "string" ? password : "",
+    port: typeof port === "number" && Number.isInteger(port) && port > 0 && port <= 65535 ? port : null,
   }
+}
+
+export function getInboundRuntimeServerConfig(): InboundServerConfig {
+  return runtimeInboundServerConfig ?? { enabled: false, username: "opencode", password: "", port: null }
 }
 
 export function setInboundServerConfig(config: InboundServerConfig) {
   getStore().set(INBOUND_ENABLED_KEY, config.enabled)
   getStore().set(INBOUND_USERNAME_KEY, config.username)
   getStore().set(INBOUND_PASSWORD_KEY, config.password)
+  if (config.port === null) {
+    getStore().delete(INBOUND_PORT_KEY)
+    return
+  }
+
+  getStore().set(INBOUND_PORT_KEY, config.port)
 }
 
 export async function spawnLocalServer(hostname: string, port: number, username: string, password: string) {

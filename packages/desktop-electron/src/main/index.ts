@@ -44,9 +44,11 @@ import { createMenu } from "./menu"
 import {
   getDefaultServerUrl,
   getInboundServerConfig,
+  getInboundRuntimeServerConfig,
   getWslConfig,
   setDefaultServerUrl,
   setInboundServerConfig,
+  setRuntimeInboundServerConfig,
   setWslConfig,
   spawnLocalServer,
 } from "./server"
@@ -150,12 +152,18 @@ async function initialize() {
   const sqliteDone = needsMigration ? defer<void>() : undefined
   let overlay: BrowserWindow | null = null
 
-  const port = await getSidecarPort()
   const inbound = getInboundServerConfig()
+  const port = inbound.enabled && inbound.port !== null ? inbound.port : await getSidecarPort()
   const hostname = inbound.enabled ? "0.0.0.0" : "127.0.0.1"
   const url = `http://127.0.0.1:${port}`
   const username = inbound.username.trim() || "opencode"
-  const password = inbound.enabled ? inbound.password : inbound.password || randomUUID()
+  const password = inbound.password.trim() || randomUUID()
+  setRuntimeInboundServerConfig({
+    enabled: inbound.enabled,
+    username,
+    password,
+    port,
+  })
 
   const loadingTask = (async () => {
     logger.log("sidecar connection started", { url })
@@ -191,6 +199,7 @@ async function initialize() {
       url,
       username,
       password,
+      port,
     })
 
     await Promise.race([
@@ -259,10 +268,11 @@ registerIpcHandlers({
   },
   getWindowConfig: () => ({ updaterEnabled: UPDATER_ENABLED }),
   consumeInitialDeepLinks: () => pendingDeepLinks.splice(0),
-  getDefaultServerUrl: () => getDefaultServerUrl(),
-  setDefaultServerUrl: (url) => setDefaultServerUrl(url),
-  getInboundServerConfig: () => getInboundServerConfig(),
-  setInboundServerConfig: (config) => setInboundServerConfig(config),
+    getDefaultServerUrl: () => getDefaultServerUrl(),
+    setDefaultServerUrl: (url) => setDefaultServerUrl(url),
+    getInboundServerConfig: () => getInboundServerConfig(),
+    getInboundRuntimeServerConfig: () => getInboundRuntimeServerConfig(),
+    setInboundServerConfig: (config) => setInboundServerConfig(config),
   getWslConfig: () => Promise.resolve(getWslConfig()),
   setWslConfig: (config: WslConfig) => setWslConfig(config),
   getDisplayBackend: async () => null,

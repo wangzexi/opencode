@@ -780,10 +780,15 @@ export const dict = {
   "settings.general.row.inboundAccess.description":
     "Allow OpenCode server access from other devices on your network. Requires restart.",
   "settings.general.row.inboundUsername.title": "Inbound username",
-  "settings.general.row.inboundUsername.description": "Username required for inbound clients.",
+  "settings.general.row.inboundUsername.description": "Username for inbound clients. Leave blank to use the default.",
   "settings.general.row.inboundPassword.title": "Inbound password",
-  "settings.general.row.inboundPassword.description": "Password required for inbound clients.",
+  "settings.general.row.inboundPassword.description": "Password for inbound clients. Leave blank to generate one automatically.",
   "settings.general.row.inboundPassword.placeholder": "Enter password",
+  "settings.general.row.inboundPort.title": "Inbound port",
+  "settings.general.row.inboundPort.description": "Leave blank to pick a free port automatically.",
+  "settings.general.row.inboundPort.placeholder": "Auto",
+  "settings.general.row.inboundPort.invalid": "Enter a port between 1 and 65535.",
+  "settings.general.row.inbound.restartRequired": "Saved. Restart OpenCode to apply inbound changes.",
   "settings.general.row.inbound.save": "Save",
   "settings.general.row.inbound.missingCredentials":
     "Set both inbound username and password before enabling inbound connections.",
