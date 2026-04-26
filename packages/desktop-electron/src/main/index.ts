@@ -157,7 +157,7 @@ async function initialize() {
   const hostname = inbound.enabled ? "0.0.0.0" : "127.0.0.1"
   const url = `http://127.0.0.1:${port}`
   const username = inbound.username.trim() || "opencode"
-  const password = inbound.password.trim() || randomUUID()
+  const password = inbound.password.trim() || randomUUID().replaceAll("-", "").slice(0, 16)
   setRuntimeInboundServerConfig({
     enabled: inbound.enabled,
     username,
