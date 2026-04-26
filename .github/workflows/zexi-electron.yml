@@ -1,0 +1,127 @@
+name: zexi-electron
+
+on:
+  push:
+    branches:
+      - zexi/dev
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build"
+        required: false
+        type: string
+      channel:
+        description: "Desktop channel"
+        required: false
+        default: prod
+        type: choice
+        options:
+          - prod
+          - beta
+          - dev
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.ref || 'head' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build-electron:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - name: mac-arm64
+            host: macos-26
+            target: aarch64-apple-darwin
+            platform_flag: --mac --arm64
+            bun_install_flags: --os=darwin --cpu=arm64
+          - name: windows-x64
+            host: windows-2025
+            target: x86_64-pc-windows-msvc
+            platform_flag: --win
+            bun_install_flags: ""
+    runs-on: ${{ matrix.settings.host }}
+    env:
+      OPENCODE_CHANNEL: ${{ inputs.channel || 'prod' }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+      AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+      AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: apple-actions/import-codesign-certs@v2
+        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != ''
+        with:
+          keychain: build
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Setup Apple API Key
+        if: runner.os == 'macOS' && secrets.APPLE_API_KEY_PATH != ''
+        shell: bash
+        run: echo "${{ secrets.APPLE_API_KEY_PATH }}" > "$RUNNER_TEMP/apple-api-key.p8"
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-flags: ${{ matrix.settings.bun_install_flags }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Azure login
+        if: runner.os == 'Windows' && env.AZURE_CLIENT_ID != '' && env.AZURE_TENANT_ID != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Prepare
+        working-directory: packages/desktop-electron
+        env:
+          RUST_TARGET: ${{ matrix.settings.target }}
+        run: bun ./scripts/prepare.ts
+
+      - name: Build
+        working-directory: packages/desktop-electron
+        run: bun run build
+
+      - name: Package
+        working-directory: packages/desktop-electron
+        timeout-minutes: 90
+        env:
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ runner.temp }}/apple-api-key.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
+
+      - name: Verify signed Windows artifacts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $files = @()
+          $files += Get-ChildItem "${{ github.workspace }}\packages\desktop-electron\dist\*.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          $files += Get-ChildItem "${{ github.workspace }}\packages\desktop-electron\dist\*unpacked\*.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          $files += Get-ChildItem "${{ github.workspace }}\packages\desktop-electron\dist\*unpacked\resources\opencode-cli.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+
+          foreach ($file in $files | Select-Object -Unique) {
+            $sig = Get-AuthenticodeSignature $file
+            Write-Host "$file => $($sig.Status)"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opencode-electron-${{ matrix.settings.name }}
+          path: |
+            packages/desktop-electron/dist/*
+            !packages/desktop-electron/dist/*unpacked
+            !packages/desktop-electron/dist/mac-arm64
