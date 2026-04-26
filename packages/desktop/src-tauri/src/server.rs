@@ -1,6 +1,6 @@
-use std::time::{Duration, Instant};
 use std::convert::TryFrom;
 use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
@@ -28,7 +28,8 @@ pub struct InboundServerConfig {
     pub port: Option<u32>,
 }
 
-static RUNTIME_INBOUND_SERVER_CONFIG: OnceLock<Mutex<Option<InboundServerConfig>>> = OnceLock::new();
+static RUNTIME_INBOUND_SERVER_CONFIG: OnceLock<Mutex<Option<InboundServerConfig>>> =
+    OnceLock::new();
 
 pub fn set_runtime_inbound_server_config(config: InboundServerConfig) {
     let store = RUNTIME_INBOUND_SERVER_CONFIG.get_or_init(|| Mutex::new(None));
@@ -111,7 +112,10 @@ pub fn get_inbound_server_config(app: AppHandle) -> Result<InboundServerConfig, 
         .store(SETTINGS_STORE)
         .map_err(|e| format!("Failed to open settings store: {}", e))?;
 
-    let enabled = store.get(INBOUND_ENABLED_KEY).and_then(|v| v.as_bool()).unwrap_or(false);
+    let enabled = store
+        .get(INBOUND_ENABLED_KEY)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let username = store
         .get(INBOUND_USERNAME_KEY)
         .and_then(|v| v.as_str().map(String::from))
@@ -148,7 +152,10 @@ pub fn get_inbound_runtime_server_config() -> Result<InboundServerConfig, String
 
 #[tauri::command]
 #[specta::specta]
-pub fn set_inbound_server_config(app: AppHandle, config: InboundServerConfig) -> Result<(), String> {
+pub fn set_inbound_server_config(
+    app: AppHandle,
+    config: InboundServerConfig,
+) -> Result<(), String> {
     let store = app
         .store(SETTINGS_STORE)
         .map_err(|e| format!("Failed to open settings store: {}", e))?;
@@ -163,7 +170,10 @@ pub fn set_inbound_server_config(app: AppHandle, config: InboundServerConfig) ->
         serde_json::Value::String(config.password.to_string()),
     );
     if let Some(port) = config.port {
-        store.set(INBOUND_PORT_KEY, serde_json::Value::Number(serde_json::Number::from(port)));
+        store.set(
+            INBOUND_PORT_KEY,
+            serde_json::Value::Number(serde_json::Number::from(port)),
+        );
     } else {
         store.delete(INBOUND_PORT_KEY);
     }
@@ -231,15 +241,12 @@ async fn check_health(url: &str, username: Option<&str>, password: Option<&str>)
 
     let mut builder = reqwest::Client::builder().timeout(Duration::from_secs(7));
 
-    if url
-        .host_str()
-        .is_some_and(|host| {
-            host.eq_ignore_ascii_case("localhost")
-                || host
-                    .parse::<std::net::IpAddr>()
-                    .is_ok_and(|ip| ip.is_loopback())
-        })
-    {
+    if url.host_str().is_some_and(|host| {
+        host.eq_ignore_ascii_case("localhost")
+            || host
+                .parse::<std::net::IpAddr>()
+                .is_ok_and(|ip| ip.is_loopback())
+    }) {
         // Some environments set proxy variables (HTTP_PROXY/HTTPS_PROXY/ALL_PROXY) without
         // excluding loopback. reqwest respects these by default, which can prevent the desktop
         // app from reaching its own local sidecar server.

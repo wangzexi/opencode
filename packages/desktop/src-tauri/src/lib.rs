@@ -33,7 +33,7 @@ use tokio::{
 
 use crate::cli::{sqlite_migration::SqliteMigrationProgress, sync_cli};
 use crate::constants::*;
-use crate::server::{set_runtime_inbound_server_config, InboundServerConfig};
+use crate::server::{InboundServerConfig, set_runtime_inbound_server_config};
 use crate::windows::{LoadingWindow, MainWindow};
 
 #[derive(Clone, serde::Serialize, specta::Type, Debug)]
@@ -440,7 +440,11 @@ async fn initialize(app: AppHandle) {
     } else {
         get_sidecar_port()
     };
-    let hostname = if inbound.enabled { "0.0.0.0" } else { "127.0.0.1" };
+    let hostname = if inbound.enabled {
+        "0.0.0.0"
+    } else {
+        "127.0.0.1"
+    };
     let url = format!("http://127.0.0.1:{port}");
     let username = if inbound.username.trim().is_empty() {
         "opencode".to_string()
@@ -448,7 +452,12 @@ async fn initialize(app: AppHandle) {
         inbound.username
     };
     let password = if inbound.password.trim().is_empty() {
-        uuid::Uuid::new_v4().to_string()
+        uuid::Uuid::new_v4()
+            .simple()
+            .to_string()
+            .chars()
+            .take(16)
+            .collect()
     } else {
         inbound.password
     };
@@ -582,7 +591,6 @@ fn spawn_cli_sync_task(app: AppHandle) {
         }
     });
 }
-
 
 fn get_sidecar_port() -> u32 {
     option_env!("OPENCODE_PORT")
