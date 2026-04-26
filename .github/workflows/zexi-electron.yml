@@ -52,6 +52,11 @@ jobs:
     runs-on: ${{ matrix.settings.host }}
     env:
       OPENCODE_CHANNEL: ${{ inputs.channel || 'prod' }}
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_PATH: ${{ secrets.APPLE_API_KEY_PATH }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
@@ -64,16 +69,16 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - uses: apple-actions/import-codesign-certs@v2
-        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != ''
+        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE != '' && env.APPLE_CERTIFICATE_PASSWORD != ''
         with:
           keychain: build
-          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
-          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          p12-file-base64: ${{ env.APPLE_CERTIFICATE }}
+          p12-password: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
 
       - name: Setup Apple API Key
-        if: runner.os == 'macOS' && secrets.APPLE_API_KEY_PATH != ''
+        if: runner.os == 'macOS' && env.APPLE_API_KEY_PATH != ''
         shell: bash
-        run: echo "${{ secrets.APPLE_API_KEY_PATH }}" > "$RUNNER_TEMP/apple-api-key.p8"
+        run: echo "${{ env.APPLE_API_KEY_PATH }}" > "$RUNNER_TEMP/apple-api-key.p8"
 
       - uses: ./.github/actions/setup-bun
         with:
@@ -105,11 +110,11 @@ jobs:
         working-directory: packages/desktop-electron
         timeout-minutes: 90
         env:
-          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          CSC_LINK: ${{ env.APPLE_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY: ${{ runner.temp }}/apple-api-key.p8
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_ID: ${{ env.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ env.APPLE_API_ISSUER }}
         run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
 
       - name: Verify signed Windows artifacts
