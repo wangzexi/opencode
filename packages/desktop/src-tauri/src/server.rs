@@ -1,4 +1,6 @@
 use std::time::{Duration, Instant};
+use std::convert::TryFrom;
+use std::sync::{Mutex, OnceLock};
 
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
@@ -8,8 +10,8 @@ use crate::{
     cli,
     cli::CommandChild,
     constants::{
-        DEFAULT_SERVER_URL_KEY, INBOUND_ENABLED_KEY, INBOUND_PASSWORD_KEY, INBOUND_USERNAME_KEY,
-        LEGACY_LAN_ENABLED_KEY, LEGACY_LAN_PASSWORD_KEY, LEGACY_LAN_USERNAME_KEY, SETTINGS_STORE, WSL_ENABLED_KEY,
+        DEFAULT_SERVER_URL_KEY, INBOUND_ENABLED_KEY, INBOUND_PASSWORD_KEY, INBOUND_PORT_KEY,
+        INBOUND_USERNAME_KEY, SETTINGS_STORE, WSL_ENABLED_KEY,
     },
 };
 
@@ -23,6 +25,14 @@ pub struct InboundServerConfig {
     pub enabled: bool,
     pub username: String,
     pub password: String,
+    pub port: Option<u32>,
+}
+
+static RUNTIME_INBOUND_SERVER_CONFIG: OnceLock<Mutex<Option<InboundServerConfig>>> = OnceLock::new();
+
+pub fn set_runtime_inbound_server_config(config: InboundServerConfig) {
+    let store = RUNTIME_INBOUND_SERVER_CONFIG.get_or_init(|| Mutex::new(None));
+    *store.lock().expect("Failed to lock runtime inbound config") = Some(config);
 }
 
 #[tauri::command]
@@ -101,28 +111,39 @@ pub fn get_inbound_server_config(app: AppHandle) -> Result<InboundServerConfig, 
         .store(SETTINGS_STORE)
         .map_err(|e| format!("Failed to open settings store: {}", e))?;
 
-    let enabled = store
-        .get(INBOUND_ENABLED_KEY)
-        .or_else(|| store.get(LEGACY_LAN_ENABLED_KEY))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let enabled = store.get(INBOUND_ENABLED_KEY).and_then(|v| v.as_bool()).unwrap_or(false);
     let username = store
         .get(INBOUND_USERNAME_KEY)
-        .or_else(|| store.get(LEGACY_LAN_USERNAME_KEY))
-        .and_then(|v| v.as_str().map(String::from))
-        .filter(|v| !v.trim().is_empty())
-        .unwrap_or("opencode".to_string());
-    let password = store
-        .get(INBOUND_PASSWORD_KEY)
-        .or_else(|| store.get(LEGACY_LAN_PASSWORD_KEY))
         .and_then(|v| v.as_str().map(String::from))
         .unwrap_or_default();
+    let password = store
+        .get(INBOUND_PASSWORD_KEY)
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_default();
+    let port = store
+        .get(INBOUND_PORT_KEY)
+        .and_then(|v| v.as_u64())
+        .and_then(|v| u32::try_from(v).ok())
+        .filter(|v| *v > 0 && *v <= 65535);
 
     Ok(InboundServerConfig {
         enabled,
         username,
         password,
+        port,
     })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_inbound_runtime_server_config() -> Result<InboundServerConfig, String> {
+    let runtime = RUNTIME_INBOUND_SERVER_CONFIG
+        .get()
+        .and_then(|value| value.lock().ok())
+        .and_then(|value| value.clone())
+        .unwrap_or_default();
+
+    Ok(runtime)
 }
 
 #[tauri::command]
@@ -141,6 +162,11 @@ pub fn set_inbound_server_config(app: AppHandle, config: InboundServerConfig) ->
         INBOUND_PASSWORD_KEY,
         serde_json::Value::String(config.password.to_string()),
     );
+    if let Some(port) = config.port {
+        store.set(INBOUND_PORT_KEY, serde_json::Value::Number(serde_json::Number::from(port)));
+    } else {
+        store.delete(INBOUND_PORT_KEY);
+    }
     store
         .save()
         .map_err(|e| format!("Failed to save settings: {}", e))?;

@@ -11,6 +11,7 @@ export const commands = {
 	getDefaultServerUrl: () => __TAURI_INVOKE<string | null>("get_default_server_url"),
 	setDefaultServerUrl: (url: string | null) => __TAURI_INVOKE<null>("set_default_server_url", { url }),
 	getInboundServerConfig: () => __TAURI_INVOKE<InboundServerConfig>("get_inbound_server_config"),
+	getInboundRuntimeServerConfig: () => __TAURI_INVOKE<InboundServerConfig>("get_inbound_runtime_server_config"),
 	setInboundServerConfig: (config: InboundServerConfig) => __TAURI_INVOKE<null>("set_inbound_server_config", { config }),
 	getWslConfig: () => __TAURI_INVOKE<WslConfig>("get_wsl_config"),
 	setWslConfig: (config: WslConfig) => __TAURI_INVOKE<null>("set_wsl_config", { config }),
@@ -40,12 +41,14 @@ export type InboundServerConfig = {
 		enabled: boolean,
 		username: string,
 		password: string,
+		port: number | null,
 	};
 
 export type ServerReadyData = {
 		url: string,
 		username: string | null,
 		password: string | null,
+		port: number,
 	};
 
 export type SqliteMigrationProgress = { type: "InProgress"; value: number } | { type: "Done" };

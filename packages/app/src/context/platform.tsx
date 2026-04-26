@@ -12,6 +12,7 @@ export type InboundServerConfig = {
   enabled: boolean
   username: string
   password: string
+  port: number | null
 }
 
 export type Platform = {
@@ -83,6 +84,12 @@ export type Platform = {
 
   /** Get inbound sidecar config (desktop only) */
   getInboundServerConfig?(): Promise<InboundServerConfig>
+
+  /** Get the inbound config currently used by the running sidecar (desktop only) */
+  getInboundRuntimeServerConfig?(): Promise<Pick<InboundServerConfig, "username" | "password" | "port">>
+
+  /** The inbound config currently used by the running sidecar (desktop only) */
+  inboundRuntimeServerConfig?: Accessor<Pick<InboundServerConfig, "username" | "password" | "port"> | undefined>
 
   /** Set inbound sidecar config (desktop only) */
   setInboundServerConfig?(config: InboundServerConfig): Promise<void>
