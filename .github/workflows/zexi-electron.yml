@@ -166,14 +166,16 @@ jobs:
       - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           RELEASE_NAME: ${{ inputs.release_name || inputs.release_tag }}
         run: |
-          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --title "$RELEASE_NAME" --notes ""
+          gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --repo "$GH_REPO" --title "$RELEASE_NAME" --notes ""
 
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           find release-artifacts -type f \
@@ -184,4 +186,4 @@ jobs:
               -name 'latest*.yml' -o \
               -name '*.blockmap' \
             \) \
-            -print0 | xargs -0 gh release upload "$RELEASE_TAG" --clobber
+            -print0 | xargs -0 gh release upload "$RELEASE_TAG" --repo "$GH_REPO" --clobber
