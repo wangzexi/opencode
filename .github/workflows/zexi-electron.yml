@@ -34,7 +34,31 @@ permissions:
   contents: write
 
 jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      release_name: ${{ steps.meta.outputs.release_name }}
+    steps:
+      - id: meta
+        shell: bash
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          INPUT_RELEASE_NAME: ${{ inputs.release_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          short_sha="${GITHUB_SHA::7}"
+          stamp="$(date -u +%Y%m%d-%H%M)"
+          release_tag="${INPUT_RELEASE_TAG:-zexi-electron-${stamp}-${short_sha}}"
+          release_name="${INPUT_RELEASE_NAME:-zexi electron build ${stamp} ${short_sha}}"
+          {
+            echo "release_tag=${release_tag}"
+            echo "release_name=${release_name}"
+          } >> "$GITHUB_OUTPUT"
+
   build-electron:
+    needs: prepare-release
     strategy:
       fail-fast: false
       matrix:
@@ -155,8 +179,9 @@ jobs:
             !packages/desktop-electron/dist/mac-arm64
 
   publish-release:
-    needs: build-electron
-    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    needs:
+      - prepare-release
+      - build-electron
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -167,16 +192,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_NAME: ${{ inputs.release_name || inputs.release_tag }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+          RELEASE_NAME: ${{ needs.prepare-release.outputs.release_name }}
+          TARGET_REF: ${{ inputs.ref || github.sha }}
         run: |
-          gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --repo "$GH_REPO" --title "$RELEASE_NAME" --notes ""
+          gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --repo "$GH_REPO" --target "$TARGET_REF" --title "$RELEASE_NAME" --notes ""
 
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
         run: |
           find release-artifacts -type f \
             \( \
@@ -193,8 +219,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name | startswith("zexi-electron-")) | .tag_name' \
-            | tail -n +4 \
+          gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name | startswith("zexi-electron-")) | [.created_at, .tag_name] | @tsv' \
+            | sort -r \
+            | awk 'NR > 3 { print $2 }' \
             | while read -r tag; do
                 [ -n "$tag" ] || continue
                 gh release delete "$tag" --repo "$GH_REPO" --yes
