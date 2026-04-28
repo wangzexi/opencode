@@ -1,0 +1,197 @@
+name: zexi-electron
+
+on:
+  push:
+    branches:
+      - zexi/dev
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+
+jobs:
+  build-electron:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - name: mac-arm64
+            host: macos-26
+            target: aarch64-apple-darwin
+            platform_flag: --mac --arm64
+            bun_install_flags: --os=darwin --cpu=arm64
+          - name: windows-x64
+            host: windows-2025
+            target: x86_64-pc-windows-msvc
+            platform_flag: --win
+            bun_install_flags: ""
+    runs-on: ${{ matrix.settings.host }}
+    env:
+      OPENCODE_CHANNEL: prod
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_PATH: ${{ secrets.APPLE_API_KEY_PATH }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+      AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+      AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: apple-actions/import-codesign-certs@v2
+        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE != '' && env.APPLE_CERTIFICATE_PASSWORD != ''
+        with:
+          keychain: build
+          p12-file-base64: ${{ env.APPLE_CERTIFICATE }}
+          p12-password: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Setup Apple API Key
+        if: runner.os == 'macOS' && env.APPLE_API_KEY_PATH != ''
+        shell: bash
+        run: echo "${{ env.APPLE_API_KEY_PATH }}" > "$RUNNER_TEMP/apple-api-key.p8"
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-flags: ${{ matrix.settings.bun_install_flags }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Azure login
+        if: runner.os == 'Windows' && env.AZURE_CLIENT_ID != '' && env.AZURE_TENANT_ID != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Prepare
+        working-directory: packages/desktop-electron
+        env:
+          RUST_TARGET: ${{ matrix.settings.target }}
+        run: bun ./scripts/prepare.ts
+
+      - name: Build
+        working-directory: packages/desktop-electron
+        run: bun run build
+
+      - name: Package macOS (signed)
+        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE != '' && env.APPLE_CERTIFICATE_PASSWORD != ''
+        working-directory: packages/desktop-electron
+        timeout-minutes: 90
+        env:
+          CSC_LINK: ${{ env.APPLE_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ runner.temp }}/apple-api-key.p8
+          APPLE_API_KEY_ID: ${{ env.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ env.APPLE_API_ISSUER }}
+        run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
+
+      - name: Package macOS (unsigned)
+        if: runner.os == 'macOS' && (env.APPLE_CERTIFICATE == '' || env.APPLE_CERTIFICATE_PASSWORD == '')
+        working-directory: packages/desktop-electron
+        timeout-minutes: 90
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        working-directory: packages/desktop-electron
+        timeout-minutes: 90
+        shell: pwsh
+        run: |
+          $attempts = 3
+          for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+            npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
+            if ($LASTEXITCODE -eq 0) {
+              exit 0
+            }
+            if ($attempt -eq $attempts) {
+              exit $LASTEXITCODE
+            }
+            Write-Host "Windows packaging failed on attempt $attempt. Retrying in 20 seconds..."
+            Start-Sleep -Seconds 20
+          }
+
+      - name: Verify signed Windows artifacts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $files = @()
+          $files += Get-ChildItem "${{ github.workspace }}\packages\desktop-electron\dist\*.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          $files += Get-ChildItem "${{ github.workspace }}\packages\desktop-electron\dist\*unpacked\*.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          $files += Get-ChildItem "${{ github.workspace }}\packages\desktop-electron\dist\*unpacked\resources\opencode-cli.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+
+          foreach ($file in $files | Select-Object -Unique) {
+            $sig = Get-AuthenticodeSignature $file
+            Write-Host "$file => $($sig.Status)"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opencode-electron-${{ matrix.settings.name }}
+          path: |
+            packages/desktop-electron/dist/*
+            !packages/desktop-electron/dist/*unpacked
+            !packages/desktop-electron/dist/mac-arm64
+
+  publish-release:
+    needs: build-electron
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Create or update release
+        id: meta
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          TARGET_REF: ${{ github.sha }}
+        run: |
+          short_sha="${GITHUB_SHA::7}"
+          stamp="$(date -u +%Y%m%d-%H%M)"
+          release_tag="zexi-electron-${stamp}-${short_sha}"
+          release_name="zexi electron build ${stamp} ${short_sha}"
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          gh release view "$release_tag" --repo "$GH_REPO" >/dev/null 2>&1 || gh release create "$release_tag" --repo "$GH_REPO" --target "$TARGET_REF" --title "$release_name" --notes ""
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
+        run: |
+          find release-artifacts -type f \
+            \( \
+              -name '*.dmg' -o \
+              -name '*.zip' -o \
+              -name '*.exe' -o \
+              -name 'latest*.yml' -o \
+              -name '*.blockmap' \
+            \) \
+            -print0 | xargs -0 gh release upload "$RELEASE_TAG" --repo "$GH_REPO" --clobber
+
+      - name: Prune old zexi releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name | startswith("zexi-electron-")) | [.created_at, .tag_name] | @tsv' \
+            | sort -r \
+            | awk 'NR > 3 { print $2 }' \
+            | while read -r tag; do
+                [ -n "$tag" ] || continue
+                gh release delete "$tag" --repo "$GH_REPO" --yes
+              done
