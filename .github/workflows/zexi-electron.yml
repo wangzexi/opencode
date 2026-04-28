@@ -154,7 +154,20 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: packages/desktop-electron
         timeout-minutes: 90
-        run: npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
+        shell: pwsh
+        run: |
+          $attempts = 3
+          for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+            npx electron-builder ${{ matrix.settings.platform_flag }} --publish never --config electron-builder.config.ts
+            if ($LASTEXITCODE -eq 0) {
+              exit 0
+            }
+            if ($attempt -eq $attempts) {
+              exit $LASTEXITCODE
+            }
+            Write-Host "Windows packaging failed on attempt $attempt. Retrying in 20 seconds..."
+            Start-Sleep -Seconds 20
+          }
 
       - name: Verify signed Windows artifacts
         if: runner.os == 'Windows'
