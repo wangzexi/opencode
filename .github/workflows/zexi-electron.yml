@@ -5,60 +5,14 @@ on:
     branches:
       - zexi/dev
   workflow_dispatch:
-    inputs:
-      ref:
-        description: "Git ref to build"
-        required: false
-        type: string
-      channel:
-        description: "Desktop channel"
-        required: false
-        default: prod
-        type: choice
-        options:
-          - prod
-          - beta
-          - dev
-      release_tag:
-        description: "Optional GitHub Release tag, for example desktop-v1"
-        required: false
-        type: string
-      release_name:
-        description: "Optional GitHub Release name"
-        required: false
-        type: string
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.ref || 'head' }}
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
   contents: write
 
 jobs:
-  prepare-release:
-    runs-on: ubuntu-latest
-    outputs:
-      release_tag: ${{ steps.meta.outputs.release_tag }}
-      release_name: ${{ steps.meta.outputs.release_name }}
-    steps:
-      - id: meta
-        shell: bash
-        env:
-          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
-          INPUT_RELEASE_NAME: ${{ inputs.release_name }}
-          GITHUB_SHA: ${{ github.sha }}
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
-        run: |
-          short_sha="${GITHUB_SHA::7}"
-          stamp="$(date -u +%Y%m%d-%H%M)"
-          release_tag="${INPUT_RELEASE_TAG:-zexi-electron-${stamp}-${short_sha}}"
-          release_name="${INPUT_RELEASE_NAME:-zexi electron build ${stamp} ${short_sha}}"
-          {
-            echo "release_tag=${release_tag}"
-            echo "release_name=${release_name}"
-          } >> "$GITHUB_OUTPUT"
-
   build-electron:
-    needs: prepare-release
     strategy:
       fail-fast: false
       matrix:
@@ -75,7 +29,7 @@ jobs:
             bun_install_flags: ""
     runs-on: ${{ matrix.settings.host }}
     env:
-      OPENCODE_CHANNEL: ${{ inputs.channel || 'prod' }}
+      OPENCODE_CHANNEL: prod
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
       APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
@@ -89,8 +43,6 @@ jobs:
       AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref || github.ref }}
 
       - uses: apple-actions/import-codesign-certs@v2
         if: runner.os == 'macOS' && env.APPLE_CERTIFICATE != '' && env.APPLE_CERTIFICATE_PASSWORD != ''
@@ -192,9 +144,7 @@ jobs:
             !packages/desktop-electron/dist/mac-arm64
 
   publish-release:
-    needs:
-      - prepare-release
-      - build-electron
+    needs: build-electron
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -202,20 +152,26 @@ jobs:
           path: release-artifacts
 
       - name: Create or update release
+        id: meta
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
-          RELEASE_NAME: ${{ needs.prepare-release.outputs.release_name }}
-          TARGET_REF: ${{ inputs.ref || github.sha }}
+          GITHUB_SHA: ${{ github.sha }}
+          TARGET_REF: ${{ github.sha }}
         run: |
-          gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --repo "$GH_REPO" --target "$TARGET_REF" --title "$RELEASE_NAME" --notes ""
+          short_sha="${GITHUB_SHA::7}"
+          stamp="$(date -u +%Y%m%d-%H%M)"
+          release_tag="zexi-electron-${stamp}-${short_sha}"
+          release_name="zexi electron build ${stamp} ${short_sha}"
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          gh release view "$release_tag" --repo "$GH_REPO" >/dev/null 2>&1 || gh release create "$release_tag" --repo "$GH_REPO" --target "$TARGET_REF" --title "$release_name" --notes ""
 
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
         run: |
           find release-artifacts -type f \
             \( \
