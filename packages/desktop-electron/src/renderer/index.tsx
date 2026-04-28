@@ -21,6 +21,7 @@ import { render } from "solid-js/web"
 import pkg from "../../package.json"
 import { initI18n, t } from "./i18n"
 import { webviewZoom } from "./webview-zoom"
+import type { ServerReadyData } from "../preload/types"
 import "./styles.css"
 import { useTheme } from "@opencode-ai/ui/theme"
 
@@ -46,7 +47,7 @@ const listenForDeepLinks = () => {
   return window.api.onDeepLink((urls) => emitDeepLinks(urls))
 }
 
-const createPlatform = (): Platform => {
+const createPlatform = (sidecar?: () => ServerReadyData | undefined): Platform => {
   const os = (() => {
     const ua = navigator.userAgent
     if (ua.includes("Mac")) return "macos"
@@ -217,6 +218,30 @@ const createPlatform = (): Platform => {
     setDefaultServer: async (url: string | null) => {
       await window.api.setDefaultServerUrl(url)
     },
+    inboundRuntimeServerConfig: () => {
+      const current = sidecar?.()
+      if (!current) return undefined
+      return {
+        username: current.username ?? "opencode",
+        password: current.password ?? "",
+        port: current.port,
+      }
+    },
+    getInboundServerConfig: async () => {
+      return window.api.getInboundServerConfig()
+    },
+    getInboundRuntimeServerConfig: async () => {
+      const current = sidecar?.() ?? (await window.api.awaitInitialization(() => undefined))
+      return {
+        enabled: true,
+        username: current.username ?? "opencode",
+        password: current.password ?? "",
+        port: current.port,
+      }
+    },
+    setInboundServerConfig: async (config) => {
+      await window.api.setInboundServerConfig(config)
+    },
 
     getDisplayBackend: async () => {
       return window.api.getDisplayBackend().catch(() => null)
@@ -252,7 +277,6 @@ window.api.onMenuCommand((id) => {
 listenForDeepLinks()
 
 render(() => {
-  const platform = createPlatform()
   const [windowConfig] = createResource(() => window.api.getWindowConfig().catch(() => ({ updaterEnabled: false })))
   const loadLocale = async () => {
     const current = await platform.storage?.("opencode.global.dat").getItem("language")
@@ -270,6 +294,7 @@ render(() => {
 
   // Fetch sidecar credentials (available immediately, before health check)
   const [sidecar] = createResource(() => window.api.awaitInitialization(() => undefined))
+  const platform = createPlatform(() => sidecar())
 
   const [defaultServer] = createResource(() =>
     platform.getDefaultServer?.().then((url) => {
