@@ -86,10 +86,10 @@ export type Platform = {
   getInboundServerConfig?(): Promise<InboundServerConfig>
 
   /** Get the inbound config currently used by the running sidecar (desktop only) */
-  getInboundRuntimeServerConfig?(): Promise<Pick<InboundServerConfig, "username" | "password" | "port">>
+  getInboundRuntimeServerConfig?(): Promise<InboundServerConfig>
 
   /** The inbound config currently used by the running sidecar (desktop only) */
-  inboundRuntimeServerConfig?: Accessor<Pick<InboundServerConfig, "username" | "password" | "port"> | undefined>
+  inboundRuntimeServerConfig?: Accessor<InboundServerConfig | undefined>
 
   /** Set inbound sidecar config (desktop only) */
   setInboundServerConfig?(config: InboundServerConfig): Promise<void>

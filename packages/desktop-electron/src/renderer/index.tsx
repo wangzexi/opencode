@@ -222,6 +222,7 @@ const createPlatform = (sidecar?: () => ServerReadyData | undefined): Platform =
       const current = sidecar?.()
       if (!current) return undefined
       return {
+        enabled: current.enabled,
         username: current.username ?? "opencode",
         password: current.password ?? "",
         port: current.port,
@@ -233,7 +234,7 @@ const createPlatform = (sidecar?: () => ServerReadyData | undefined): Platform =
     getInboundRuntimeServerConfig: async () => {
       const current = sidecar?.() ?? (await window.api.awaitInitialization(() => undefined))
       return {
-        enabled: true,
+        enabled: current.enabled,
         username: current.username ?? "opencode",
         password: current.password ?? "",
         port: current.port,

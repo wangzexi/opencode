@@ -197,6 +197,7 @@ async function initialize() {
     server = listener
     serverReady.resolve({
       url,
+      enabled: inbound.enabled,
       username,
       password,
       port,

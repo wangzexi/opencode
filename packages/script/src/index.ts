@@ -20,6 +20,7 @@ if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
 const env = {
   OPENCODE_CHANNEL: process.env["OPENCODE_CHANNEL"],
   OPENCODE_BUMP: process.env["OPENCODE_BUMP"],
+  OPENCODE_FORK_SUFFIX: process.env["OPENCODE_FORK_SUFFIX"],
   OPENCODE_VERSION: process.env["OPENCODE_VERSION"],
   OPENCODE_RELEASE: process.env["OPENCODE_RELEASE"],
 }
@@ -30,9 +31,38 @@ const CHANNEL = await (async () => {
   return await $`git branch --show-current`.text().then((x) => x.trim())
 })()
 const IS_PREVIEW = CHANNEL !== "latest"
+const FORK_SUFFIX = await (async () => {
+  if (env.OPENCODE_FORK_SUFFIX?.trim()) return env.OPENCODE_FORK_SUFFIX.trim()
+  const branch = await $`git branch --show-current`.text().then((x) => x.trim())
+  if (branch.startsWith("zexi/")) return "zexi"
+  return ""
+})()
+const BASE_VERSION = await (async () => {
+  const synced = await $`git log --format=%s -n 1 --grep=^sync\\ release\\ versions\\ for\\ v -- package.json packages/desktop-electron/package.json`
+    .text()
+    .then((x) => x.trim())
+    .catch(() => "")
+  const matched = synced.match(/v(\d+\.\d+\.\d+)/)
+  if (matched) return matched[1]
+
+  const desktopPkg = await Bun.file(path.resolve(import.meta.dir, "../../desktop-electron/package.json"))
+    .json()
+    .catch(() => ({ version: "" }))
+  if (typeof desktopPkg.version === "string" && desktopPkg.version) {
+    return desktopPkg.version.replace(/-.+$/, "")
+  }
+
+  return await fetch("https://registry.npmjs.org/opencode-ai/latest")
+    .then((res) => {
+      if (!res.ok) throw new Error(res.statusText)
+      return res.json()
+    })
+    .then((data: any) => data.version)
+})()
 
 const VERSION = await (async () => {
   if (env.OPENCODE_VERSION) return env.OPENCODE_VERSION
+  if (FORK_SUFFIX) return `${BASE_VERSION}-${FORK_SUFFIX}`
   if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
   const version = await fetch("https://registry.npmjs.org/opencode-ai/latest")
     .then((res) => {

@@ -28,6 +28,8 @@ export const SidebarContent = (props: {
   settingsLabel: Accessor<string>
   settingsKeybind: Accessor<string | undefined>
   onOpenSettings: () => void
+  serverLabel: Accessor<string>
+  onOpenServer: () => void
   helpLabel: Accessor<string>
   onOpenHelp: () => void
   renderPanel: () => JSX.Element
@@ -107,6 +109,9 @@ export const SidebarContent = (props: {
               onClick={props.onOpenHelp}
               aria-label={props.helpLabel()}
             />
+          </Tooltip>
+          <Tooltip placement={placement()} value={props.serverLabel()}>
+            <IconButton icon="server" variant="ghost" size="large" onClick={props.onOpenServer} aria-label={props.serverLabel()} />
           </Tooltip>
         </div>
       </div>
