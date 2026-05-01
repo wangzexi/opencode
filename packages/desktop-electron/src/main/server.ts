@@ -1,12 +1,8 @@
 import { app } from "electron"
-import {
-  DEFAULT_SERVER_URL_KEY,
-  INBOUND_ENABLED_KEY,
-  INBOUND_PASSWORD_KEY,
-  INBOUND_PORT_KEY,
-  INBOUND_USERNAME_KEY,
-  WSL_ENABLED_KEY,
-} from "./constants"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import os from "node:os"
+import path from "node:path"
+import { DEFAULT_SERVER_URL_KEY, WSL_ENABLED_KEY } from "./constants"
 import { getUserShell, loadShellEnv } from "./shell-env"
 import { getStore } from "./store"
 
@@ -16,6 +12,7 @@ export type InboundServerConfig = { enabled: boolean; username: string; password
 export type HealthCheck = { wait: Promise<void> }
 
 let runtimeInboundServerConfig: InboundServerConfig | null = null
+const emptyInboundServerConfig = { enabled: false, username: "", password: "", port: null } satisfies InboundServerConfig
 
 export function setRuntimeInboundServerConfig(config: InboundServerConfig) {
   runtimeInboundServerConfig = config
@@ -44,33 +41,87 @@ export function setWslConfig(config: WslConfig) {
   getStore().set(WSL_ENABLED_KEY, config.enabled)
 }
 
-export function getInboundServerConfig(): InboundServerConfig {
-  const enabled = getStore().get(INBOUND_ENABLED_KEY)
-  const username = getStore().get(INBOUND_USERNAME_KEY)
-  const password = getStore().get(INBOUND_PASSWORD_KEY)
-  const port = getStore().get(INBOUND_PORT_KEY)
-  return {
-    enabled: typeof enabled === "boolean" ? enabled : false,
-    username: typeof username === "string" ? username : "",
-    password: typeof password === "string" ? password : "",
-    port: typeof port === "number" && Number.isInteger(port) && port > 0 && port <= 65535 ? port : null,
+function configDir() {
+  if (process.env.OPENCODE_CONFIG_DIR?.trim()) return process.env.OPENCODE_CONFIG_DIR.trim()
+  return path.join(process.env.XDG_CONFIG_HOME?.trim() || path.join(os.homedir(), ".config"), "opencode")
+}
+
+function configFile() {
+  const dir = configDir()
+  for (const name of ["opencode.jsonc", "opencode.json", "config.json"]) {
+    const file = path.join(dir, name)
+    if (existsSync(file)) return file
   }
+  return path.join(dir, "opencode.jsonc")
+}
+
+function sanitizeInboundServerConfig(value: unknown): InboundServerConfig | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return
+  const record = value as Record<string, unknown>
+  return {
+    enabled: typeof record.enabled === "boolean" ? record.enabled : false,
+    username: typeof record.username === "string" ? record.username : "",
+    password: typeof record.password === "string" ? record.password : "",
+    port:
+      typeof record.port === "number" && Number.isInteger(record.port) && record.port > 0 && record.port <= 65535
+        ? record.port
+        : null,
+  }
+}
+
+function parseConfigText(text: string) {
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {}
+  try {
+    return JSON.parse(
+      text
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "")
+        .replace(/,\s*([}\]])/g, "$1"),
+    ) as Record<string, unknown>
+  } catch {
+    return
+  }
+}
+
+function readInboundServerConfigFromConfigFile() {
+  try {
+    const value = parseConfigText(readFileSync(configFile(), "utf8"))
+    if (!value) return
+    return sanitizeInboundServerConfig(value.localServer)
+  } catch {
+    return
+  }
+}
+
+function writableInboundServerConfig(config: InboundServerConfig) {
+  return {
+    enabled: config.enabled,
+    ...(config.port !== null ? { port: config.port } : {}),
+    ...(config.username ? { username: config.username } : {}),
+    ...(config.password ? { password: config.password } : {}),
+  }
+}
+
+function writeInboundServerConfigToConfigFile(config: InboundServerConfig) {
+  const file = configFile()
+  mkdirSync(path.dirname(file), { recursive: true })
+  const next = writableInboundServerConfig(config)
+  const current = existsSync(file) ? (parseConfigText(readFileSync(file, "utf8")) ?? {}) : {}
+  writeFileSync(file, `${JSON.stringify({ ...current, localServer: next }, null, 2)}\n`)
+}
+
+export function getInboundServerConfig(): InboundServerConfig {
+  return readInboundServerConfigFromConfigFile() ?? emptyInboundServerConfig
 }
 
 export function getInboundRuntimeServerConfig(): InboundServerConfig {
-  return runtimeInboundServerConfig ?? { enabled: false, username: "opencode", password: "", port: null }
+  return runtimeInboundServerConfig ?? emptyInboundServerConfig
 }
 
 export function setInboundServerConfig(config: InboundServerConfig) {
-  getStore().set(INBOUND_ENABLED_KEY, config.enabled)
-  getStore().set(INBOUND_USERNAME_KEY, config.username)
-  getStore().set(INBOUND_PASSWORD_KEY, config.password)
-  if (config.port === null) {
-    getStore().delete(INBOUND_PORT_KEY)
-    return
-  }
-
-  getStore().set(INBOUND_PORT_KEY, config.port)
+  writeInboundServerConfigToConfigFile(config)
 }
 
 export async function spawnLocalServer(hostname: string, port: number, username: string, password: string) {

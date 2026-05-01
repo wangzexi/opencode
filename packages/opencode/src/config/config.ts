@@ -105,6 +105,9 @@ export const Info = Schema.Struct({
   server: Schema.optional(ConfigServer.Server).annotate({
     description: "Server configuration for opencode serve and web commands",
   }),
+  localServer: Schema.optional(ConfigServer.LocalServer).annotate({
+    description: "Desktop local server remote access configuration",
+  }),
   command: Schema.optional(Schema.Record(Schema.String, ConfigCommand.Info)).annotate({
     description: "Command configuration, see https://opencode.ai/docs/commands",
   }),
