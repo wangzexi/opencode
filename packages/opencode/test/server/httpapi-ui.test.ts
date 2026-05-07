@@ -301,11 +301,25 @@ describe("HttpApi UI fallback", () => {
     expect(response.status).toBe(404)
   })
 
-  test("requires server password for the web UI", async () => {
+  test("serves the web UI shell without auth even when a server password is set", async () => {
     Flag.OPENCODE_EXPERIMENTAL_HTTPAPI = true
     Flag.OPENCODE_DISABLE_EMBEDDED_WEB_UI = true
 
-    const response = await uiApp({ password: "secret", username: "opencode" }).request("/")
+    const response = await uiApp({
+      password: "secret",
+      username: "opencode",
+      client: httpClient(new Response("<html>opencode</html>", { headers: { "content-type": "text/html" } })),
+    }).request("/")
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe("<html>opencode</html>")
+  })
+
+  test("keeps non-public UI fallback paths protected without auth", async () => {
+    Flag.OPENCODE_EXPERIMENTAL_HTTPAPI = true
+    Flag.OPENCODE_DISABLE_EMBEDDED_WEB_UI = true
+
+    const response = await uiApp({ password: "secret", username: "opencode" }).request("/session")
 
     expect(response.status).toBe(401)
     expect(response.headers.get("www-authenticate")).toBe('Basic realm="Secure Area"')
@@ -336,16 +350,16 @@ describe("HttpApi UI fallback", () => {
     expect(response.status).toBe(200)
   })
 
-  // Regression for #25698 (Ope): the browser fetches the PWA manifest and
-  // its icons via flows that don't carry app-managed credentials (the
-  // `<link rel="manifest">` request is not under page-auth control), so the
-  // server returning 401 breaks PWA install. These specific public assets
-  // should bypass auth.
-  test("serves the PWA manifest without auth even when a server password is set", async () => {
+  test("serves public UI assets without auth even when a server password is set", async () => {
     Flag.OPENCODE_EXPERIMENTAL_HTTPAPI = true
     Flag.OPENCODE_DISABLE_EMBEDDED_WEB_UI = true
 
-    for (const path of ["/site.webmanifest", "/web-app-manifest-192x192.png", "/web-app-manifest-512x512.png"]) {
+    for (const path of [
+      "/assets/app.js",
+      "/site.webmanifest",
+      "/web-app-manifest-192x192.png",
+      "/web-app-manifest-512x512.png",
+    ]) {
       const response = await uiApp({
         password: "secret",
         username: "opencode",
