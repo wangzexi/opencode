@@ -49,9 +49,13 @@ import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
 import {
   getDefaultServerUrl,
+  getInboundServerConfig,
+  getInboundRuntimeServerConfig,
   getWslConfig,
   preferAppEnv,
   setDefaultServerUrl,
+  setInboundServerConfig,
+  setRuntimeInboundServerConfig,
   setWslConfig,
   spawnLocalServer,
   type SidecarListener,
@@ -193,10 +197,18 @@ async function initialize() {
   const needsMigration = !sqliteFileExists()
   let overlay: BrowserWindow | null = null
 
-  const port = await getSidecarPort()
-  const hostname = "127.0.0.1"
-  const url = `http://${hostname}:${port}`
-  const password = randomUUID()
+  const inbound = getInboundServerConfig()
+  const port = inbound.enabled && inbound.port !== null ? inbound.port : await getSidecarPort()
+  const hostname = inbound.enabled ? "0.0.0.0" : "127.0.0.1"
+  const url = `http://127.0.0.1:${port}`
+  const username = inbound.enabled ? inbound.username.trim() : "opencode"
+  const password = inbound.enabled ? inbound.password.trim() : randomUUID().replaceAll("-", "").slice(0, 16)
+  setRuntimeInboundServerConfig({
+    enabled: inbound.enabled,
+    username,
+    password,
+    port,
+  })
 
   const loadingTask = (async () => {
     logger.log("sidecar connection started", { url })
@@ -211,6 +223,7 @@ async function initialize() {
     const { listener, health } = await spawnLocalServer(
       hostname,
       port,
+      username,
       password,
       () => {
         ensureLoopbackNoProxy()
@@ -228,8 +241,10 @@ async function initialize() {
     server = listener
     serverReady.resolve({
       url,
-      username: "opencode",
+      enabled: inbound.enabled,
+      username,
       password,
+      port,
     })
 
     await Promise.race([
@@ -301,6 +316,9 @@ registerIpcHandlers({
   consumeInitialDeepLinks: () => pendingDeepLinks.splice(0),
   getDefaultServerUrl: () => getDefaultServerUrl(),
   setDefaultServerUrl: (url) => setDefaultServerUrl(url),
+  getInboundServerConfig: () => getInboundServerConfig(),
+  getInboundRuntimeServerConfig: () => getInboundRuntimeServerConfig(),
+  setInboundServerConfig: (config) => setInboundServerConfig(config),
   getWslConfig: () => Promise.resolve(getWslConfig()),
   setWslConfig: (config: WslConfig) => setWslConfig(config),
   getDisplayBackend: async () => null,
