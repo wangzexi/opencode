@@ -3,8 +3,7 @@ import { batch, createEffect, createMemo, onCleanup, onMount, type Accessor } fr
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { useGlobalSync } from "./global-sync"
-import { useGlobalSDK } from "./global-sdk"
-import { useServer } from "./server"
+import { useOpenedProjects } from "./opened-projects"
 import { usePlatform } from "./platform"
 import { Project } from "@opencode-ai/sdk/v2"
 import { Persist, persisted, removePersisted } from "@/utils/persist"
@@ -135,9 +134,8 @@ const normalizeStoredSessionTabs = (key: string, tabs: SessionTabs) => {
 export const { use: useLayout, provider: LayoutProvider } = createSimpleContext({
   name: "Layout",
   init: () => {
-    const globalSdk = useGlobalSDK()
     const globalSync = useGlobalSync()
-    const server = useServer()
+    const openedProjects = useOpenedProjects()
     const platform = usePlatform()
 
     const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -384,21 +382,26 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       return available[Math.floor(Math.random() * available.length)]
     }
 
-    function enrich(project: { worktree: string; expanded: boolean }) {
+    function enrich(project: { worktree: string; expanded: boolean; name?: string; icon?: { color?: string; override?: string } }) {
       const [childStore] = globalSync.child(project.worktree, { bootstrap: false })
       const projectID = childStore.project
-      const metadata = projectID
+      const dbProject = projectID
         ? globalSync.data.project.find((x) => x.id === projectID)
         : globalSync.data.project.find((x) => x.worktree === project.worktree)
 
-      // Preserve local icon override from per-workspace localStorage cache (childStore.icon).
-      // Without this, different subdirectories of the same git repo would share the same
-      // icon from the database instead of using their individual overrides.
-      const base = { ...metadata, ...project }
-      if (childStore.icon) {
-        return { ...base, icon: { ...base.icon, override: childStore.icon } }
-      }
-      return base
+      // Config data (name, icon.color, icon.override) is authoritative for display.
+      // Database data supplements with id, sandboxes, icon.url (auto-discovered favicon).
+      return {
+        ...dbProject,
+        worktree: project.worktree,
+        expanded: project.expanded,
+        name: project.name ?? dbProject?.name,
+        icon: {
+          url: dbProject?.icon?.url,
+          color: project.icon?.color,
+          override: project.icon?.override ?? childStore.icon,
+        },
+      } as LocalProject
     }
 
     const roots = createMemo(() => {
@@ -435,7 +438,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
     }
 
     createEffect(() => {
-      const projects = server.projects.list()
+      const projects = openedProjects.list()
       const seen = new Set(projects.map((project) => project.worktree))
 
       batch(() => {
@@ -443,19 +446,19 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           const root = rootFor(project.worktree)
           if (root === project.worktree) continue
 
-          server.projects.close(project.worktree)
+          openedProjects.close(project.worktree)
 
           if (!seen.has(root)) {
-            server.projects.open(root)
+            openedProjects.open(root)
             seen.add(root)
           }
 
-          if (project.expanded) server.projects.expand(root)
+          if (project.expanded) openedProjects.expand(root)
         }
       })
     })
 
-    const enriched = createMemo(() => server.projects.list().map(enrich))
+    const enriched = createMemo(() => openedProjects.list().map(enrich))
     const list = createMemo(() => {
       const projects = enriched()
       return projects.map((project) => {
@@ -501,22 +504,13 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           used.add(color)
           setColors(worktree, color)
         }
-        if (!project.id) continue
 
         const requested = colorRequested.get(worktree)
         if (requested === color) continue
         colorRequested.set(worktree, color)
 
-        if (project.id === "global") {
-          globalSync.project.meta(worktree, { icon: { color } })
-          continue
-        }
-
-        void globalSdk.client.project
-          .update({ projectID: project.id, directory: worktree, icon: { color } })
-          .catch(() => {
-            if (colorRequested.get(worktree) === color) colorRequested.delete(worktree)
-          })
+        // Write color to config so all clients stay in sync
+        openedProjects.updateMeta(worktree, { icon: { color } })
       }
     })
 
@@ -529,7 +523,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         sessionTimer = window.setTimeout(() => {
           sessionTimer = undefined
           void Promise.all(
-            server.projects.list().map((project) => {
+            openedProjects.list().map((project) => {
               return globalSync.project.loadSessions(project.worktree)
             }),
           )
@@ -558,21 +552,23 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         list,
         open(directory: string) {
           const root = rootFor(directory)
-          if (server.projects.list().find((x) => x.worktree === root)) return
+          if (openedProjects.list().find((x) => x.worktree === root)) return
+          // Bootstrap with bootstrap: true to trigger project discovery on the backend
+          globalSync.child(root, { bootstrap: true })
           void globalSync.project.loadSessions(root)
-          server.projects.open(root)
+          openedProjects.open(root)
         },
         close(directory: string) {
-          server.projects.close(directory)
+          openedProjects.close(directory)
         },
         expand(directory: string) {
-          server.projects.expand(directory)
+          openedProjects.expand(directory)
         },
         collapse(directory: string) {
-          server.projects.collapse(directory)
+          openedProjects.collapse(directory)
         },
         move(directory: string, toIndex: number) {
-          server.projects.move(directory, toIndex)
+          openedProjects.move(directory, toIndex)
         },
       },
       sidebar: {
