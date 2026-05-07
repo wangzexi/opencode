@@ -341,11 +341,25 @@ export const dict = {
   "dialog.server.action.remove": "Remove server",
 
   "dialog.server.menu.edit": "Edit",
+  "dialog.server.menu.settings": "Settings",
   "dialog.server.menu.default": "Set as default",
   "dialog.server.menu.defaultRemove": "Remove default",
   "dialog.server.menu.delete": "Delete",
   "dialog.server.current": "Current Server",
   "dialog.server.status.default": "Default",
+  "dialog.server.status.serving": "Open",
+  "dialog.server.inbound.title": "Local server",
+  "dialog.server.inbound.restartRequired": "Restart OpenCode to apply changes",
+  "dialog.server.inbound.access.title": "Open remote access",
+  "dialog.server.inbound.access.description": "Let remote OpenCode clients connect to this machine",
+  "dialog.server.inbound.username": "Username (optional)",
+  "dialog.server.inbound.usernamePlaceholder": "Username",
+  "dialog.server.inbound.password": "Password (optional)",
+  "dialog.server.inbound.passwordPlaceholder": "Password",
+  "dialog.server.inbound.port": "Port",
+  "dialog.server.inbound.portPlaceholder": "Port",
+  "dialog.server.inbound.portRequired": "Enter a port",
+  "dialog.server.inbound.portInvalid": "Enter a port between 1 and 65535",
   "server.row.noUsername": "no username",
 
   "dialog.project.edit.title": "Edit project",
@@ -727,6 +741,7 @@ export const dict = {
   "settings.general.section.sounds": "Sound effects",
   "settings.general.section.feed": "Feed",
   "settings.general.section.display": "Display",
+  "settings.general.section.network": "Network",
 
   "settings.general.row.language.title": "Language",
   "settings.general.row.language.description": "Change the display language for OpenCode",
@@ -777,7 +792,6 @@ export const dict = {
   "settings.general.row.wayland.description": "Disable X11 fallback on Wayland. Requires restart.",
   "settings.general.row.wayland.tooltip":
     "On Linux with mixed refresh-rate monitors, native Wayland can be more stable.",
-
   "settings.general.row.releaseNotes.title": "Release notes",
   "settings.general.row.releaseNotes.description": "Show What's New popups after updates",
 

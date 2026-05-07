@@ -20,9 +20,13 @@ import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
 import {
   getDefaultServerUrl,
+  getInboundServerConfig,
+  getInboundRuntimeServerConfig,
   getWslConfig,
   preferAppEnv,
   setDefaultServerUrl,
+  setInboundServerConfig,
+  setRuntimeInboundServerConfig,
   setWslConfig,
   spawnLocalServer,
   type SidecarListener,
@@ -223,6 +227,9 @@ const main = Effect.gen(function* () {
     consumeInitialDeepLinks: () => pendingDeepLinks.splice(0),
     getDefaultServerUrl: () => getDefaultServerUrl(),
     setDefaultServerUrl: (url) => setDefaultServerUrl(url),
+    getInboundServerConfig: () => getInboundServerConfig(),
+    getInboundRuntimeServerConfig: () => getInboundRuntimeServerConfig(),
+    setInboundServerConfig: (config) => setInboundServerConfig(config),
     getWslConfig: () => Promise.resolve(getWslConfig()),
     setWslConfig: (config: WslConfig) => setWslConfig(config),
     getDisplayBackend: async () => null,
@@ -255,32 +262,43 @@ const main = Effect.gen(function* () {
   })()
   let overlay: BrowserWindow | null = null
 
-  const port = yield* Effect.gen(function* () {
-    const fromEnv = process.env.OPENCODE_PORT
-    if (fromEnv) {
-      const parsed = Number.parseInt(fromEnv, 10)
-      if (!Number.isNaN(parsed)) return parsed
-    }
+  const inbound = getInboundServerConfig()
+  const port =
+    inbound.enabled && inbound.port !== null
+      ? inbound.port
+      : yield* Effect.gen(function* () {
+          const fromEnv = process.env.OPENCODE_PORT
+          if (fromEnv) {
+            const parsed = Number.parseInt(fromEnv, 10)
+            if (!Number.isNaN(parsed)) return parsed
+          }
 
-    const res = yield* Deferred.make<number, unknown>()
-    const server = createServer()
-    server.on("error", (e) => Deferred.failSync(res, () => e))
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address()
-      if (typeof address !== "object" || !address) {
-        server.close()
-        Deferred.failSync(res, () => new Error("Failed to get port"))
-        return
-      }
-      const port = address.port
-      server.close(() => Effect.runSync(Deferred.succeed(res, port)))
-    })
+          const res = yield* Deferred.make<number, unknown>()
+          const server = createServer()
+          server.on("error", (e) => Deferred.failSync(res, () => e))
+          server.listen(0, "127.0.0.1", () => {
+            const address = server.address()
+            if (typeof address !== "object" || !address) {
+              server.close()
+              Deferred.failSync(res, () => new Error("Failed to get port"))
+              return
+            }
+            const port = address.port
+            server.close(() => Effect.runSync(Deferred.succeed(res, port)))
+          })
 
-    return yield* Deferred.await(res)
+          return yield* Deferred.await(res)
+        })
+  const hostname = inbound.enabled ? "0.0.0.0" : "127.0.0.1"
+  const url = `http://127.0.0.1:${port}`
+  const username = inbound.enabled ? inbound.username.trim() : "opencode"
+  const password = inbound.enabled ? inbound.password.trim() : randomUUID().replaceAll("-", "").slice(0, 16)
+  setRuntimeInboundServerConfig({
+    enabled: inbound.enabled,
+    username,
+    password,
+    port,
   })
-  const hostname = "127.0.0.1"
-  const url = `http://${hostname}:${port}`
-  const password = randomUUID()
 
   const loadingTask = yield* Effect.gen(function* () {
     logger.log("sidecar connection started", { url })
@@ -296,6 +314,7 @@ const main = Effect.gen(function* () {
       spawnLocalServer(
         hostname,
         port,
+        username,
         password,
         () => {
           ensureLoopbackNoProxy()
@@ -314,8 +333,10 @@ const main = Effect.gen(function* () {
     server = listener
     yield* Deferred.succeed(serverReady, {
       url,
-      username: "opencode",
+      enabled: inbound.enabled,
+      username,
       password,
+      port,
     })
 
     yield* Effect.promise(() => health.wait).pipe(
