@@ -4,4 +4,5 @@ import { Schema } from "effect"
 export const Event = {
   Connected: BusEvent.define("server.connected", Schema.Struct({})),
   Disposed: BusEvent.define("global.disposed", Schema.Struct({})),
+  ProjectOpenedUpdated: BusEvent.define("project.opened.updated", Schema.Struct({})),
 }

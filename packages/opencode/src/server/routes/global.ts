@@ -14,10 +14,23 @@ import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import * as Log from "@opencode-ai/core/util/log"
 import { lazy } from "../../util/lazy"
 import { Config } from "@/config/config"
+import { ConfigProjects } from "@/config/projects"
 import { errors } from "../error"
+import { Event as ServerEvent } from "../event"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "../global-lifecycle"
 
 const log = Log.create({ service: "server" })
+
+function emitOpenedProjectsUpdated() {
+  GlobalBus.emit("event", {
+    directory: "global",
+    payload: {
+      id: Bus.createID(),
+      type: ServerEvent.ProjectOpenedUpdated.type,
+      properties: {},
+    },
+  })
+}
 
 async function streamEvents(c: Context, subscribe: (q: AsyncQueue<string | null>) => () => void) {
   return streamSSE(c, async (stream) => {
@@ -186,6 +199,192 @@ export const GlobalRoutes = lazy(() =>
           )
         }
         return c.json(result.info)
+      },
+    )
+    .get(
+      "/project/opened",
+      describeRoute({
+        summary: "List opened projects",
+        description: "Get the list of opened projects with their metadata.",
+        operationId: "global.project.opened.list",
+        responses: {
+          200: {
+            description: "List of opened projects",
+            content: {
+              "application/json": {
+                schema: resolver(z.array(ConfigProjects.Project.zod)),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        const cfg = await AppRuntime.runPromise(Config.Service.use((svc) => svc.getGlobal()))
+        return c.json(cfg.projects ?? [])
+      },
+    )
+    .post(
+      "/project/opened",
+      describeRoute({
+        summary: "Open a project",
+        description: "Add a project to the opened projects list.",
+        operationId: "global.project.opened.open",
+        responses: {
+          200: {
+            description: "Updated opened projects list",
+            content: {
+              "application/json": {
+                schema: resolver(z.array(ConfigProjects.Project.zod)),
+              },
+            },
+          },
+        },
+      }),
+      validator("json", z.object({ worktree: z.string() })),
+      async (c) => {
+        const input = c.req.valid("json")
+        const next = await AppRuntime.runPromise(
+          Config.Service.use((svc) =>
+            Effect.gen(function* () {
+              const cfg = yield* svc.getGlobal()
+              const projects = cfg.projects ?? []
+              if (projects.some((project) => project.worktree === input.worktree)) return projects
+              const next = [{ worktree: input.worktree }, ...projects]
+              yield* svc.updateGlobal({ ...cfg, projects: next })
+              yield* Effect.sync(emitOpenedProjectsUpdated)
+              return next
+            }),
+          ),
+        )
+        return c.json(next)
+      },
+    )
+    .delete(
+      "/project/opened",
+      describeRoute({
+        summary: "Close a project",
+        description: "Remove a project from the opened projects list.",
+        operationId: "global.project.opened.close",
+        responses: {
+          200: {
+            description: "Updated opened projects list",
+            content: {
+              "application/json": {
+                schema: resolver(z.array(ConfigProjects.Project.zod)),
+              },
+            },
+          },
+        },
+      }),
+      validator("json", z.object({ worktree: z.string() })),
+      async (c) => {
+        const input = c.req.valid("json")
+        const next = await AppRuntime.runPromise(
+          Config.Service.use((svc) =>
+            Effect.gen(function* () {
+              const cfg = yield* svc.getGlobal()
+              const next = (cfg.projects ?? []).filter((project) => project.worktree !== input.worktree)
+              yield* svc.updateGlobal({ ...cfg, projects: next })
+              yield* Effect.sync(emitOpenedProjectsUpdated)
+              return next
+            }),
+          ),
+        )
+        return c.json(next)
+      },
+    )
+    .patch(
+      "/project/opened",
+      describeRoute({
+        summary: "Update project metadata",
+        description: "Update name, icon, or commands for an opened project.",
+        operationId: "global.project.opened.meta",
+        responses: {
+          200: {
+            description: "Updated project metadata",
+            content: {
+              "application/json": {
+                schema: resolver(z.array(ConfigProjects.Project.zod)),
+              },
+            },
+          },
+        },
+      }),
+      validator(
+        "json",
+        z.object({
+          worktree: z.string(),
+          name: z.string().optional(),
+          icon: z
+            .object({
+              color: z.string().optional(),
+              override: z.string().optional(),
+              emoji: z.string().optional(),
+            })
+            .optional(),
+          commands: z
+            .object({
+              start: z.string().optional(),
+            })
+            .optional(),
+        }),
+      ),
+      async (c) => {
+        const input = c.req.valid("json")
+        const next = await AppRuntime.runPromise(
+          Config.Service.use((svc) =>
+            Effect.gen(function* () {
+              const cfg = yield* svc.getGlobal()
+              const projects = cfg.projects ?? []
+              const next = projects.map((project) => {
+                if (project.worktree !== input.worktree) return project
+                return {
+                  ...project,
+                  ...(input.name !== undefined ? { name: input.name } : {}),
+                  ...(input.icon !== undefined ? { icon: { ...project.icon, ...input.icon } } : {}),
+                  ...(input.commands !== undefined ? { commands: { ...project.commands, ...input.commands } } : {}),
+                }
+              })
+              yield* svc.updateGlobal({ ...cfg, projects: next })
+              yield* Effect.sync(emitOpenedProjectsUpdated)
+              return next
+            }),
+          ),
+        )
+        return c.json(next)
+      },
+    )
+    .put(
+      "/project/opened",
+      describeRoute({
+        summary: "Reorder opened projects",
+        description: "Replace the entire opened projects list to reflect new ordering.",
+        operationId: "global.project.opened.reorder",
+        responses: {
+          200: {
+            description: "Reordered opened projects list",
+            content: {
+              "application/json": {
+                schema: resolver(z.array(ConfigProjects.Project.zod)),
+              },
+            },
+          },
+        },
+      }),
+      validator("json", z.object({ projects: z.array(ConfigProjects.Project.zod) })),
+      async (c) => {
+        const input = c.req.valid("json")
+        const next = await AppRuntime.runPromise(
+          Config.Service.use((svc) =>
+            Effect.gen(function* () {
+              const cfg = yield* svc.getGlobal()
+              yield* svc.updateGlobal({ ...cfg, projects: input.projects })
+              yield* Effect.sync(emitOpenedProjectsUpdated)
+              return input.projects
+            }),
+          ),
+        )
+        return c.json(next)
       },
     )
     .post(

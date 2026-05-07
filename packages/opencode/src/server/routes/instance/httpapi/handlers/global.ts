@@ -1,9 +1,11 @@
 import { Config } from "@/config/config"
+import type { Project as ConfigProject } from "@/config/projects"
 import { GlobalBus, type GlobalEvent as GlobalBusEvent } from "@/bus/global"
 import { EffectBridge } from "@/effect/bridge"
 import { Bus } from "@/bus"
 import { Installation } from "@/installation"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
+import { Event as ServerEvent } from "@/server/event"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import * as Log from "@opencode-ai/core/util/log"
 import { Effect, Queue, Schema } from "effect"
@@ -31,6 +33,17 @@ function parseBody(body: string) {
   } catch {
     return undefined
   }
+}
+
+function emitOpenedProjectsUpdated() {
+  GlobalBus.emit("event", {
+    directory: "global",
+    payload: {
+      id: Bus.createID(),
+      type: ServerEvent.ProjectOpenedUpdated.type,
+      properties: {},
+    },
+  })
 }
 
 function eventResponse() {
@@ -85,8 +98,17 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     })
 
     const configUpdate = Effect.fn("GlobalHttpApi.configUpdate")(function* (ctx) {
+      const before = yield* config.getGlobal()
       const result = yield* config.updateGlobal(ctx.payload)
-      if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
+      if (result.changed) {
+        // Only dispose instances if fields that affect runtime changed.
+        // UI-only fields (projects, localServer) should not trigger disposal.
+        const { projects: _p1, localServer: _l1, ...beforeCore } = before
+        const { projects: _p2, localServer: _l2, ...afterCore } = result.info
+        if (JSON.stringify(beforeCore) !== JSON.stringify(afterCore)) {
+          bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
+        }
+      }
       return result.info
     })
 
@@ -146,6 +168,65 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       return HttpServerResponse.jsonUnsafe(result.body, { status: result.status })
     })
 
+    const openedList = Effect.fn("GlobalHttpApi.openedList")(function* () {
+      const cfg = yield* config.getGlobal()
+      return cfg.projects ?? []
+    })
+
+    const openedOpen = Effect.fn("GlobalHttpApi.openedOpen")(function* (ctx: { payload: { worktree: string } }) {
+      const { worktree } = ctx.payload
+      const cfg = yield* config.getGlobal()
+      const projects = cfg.projects ?? []
+      if (projects.some((p) => p.worktree === worktree)) return projects
+      const next = [{ worktree }, ...projects]
+      yield* config.updateGlobal({ ...cfg, projects: next })
+      yield* Effect.sync(emitOpenedProjectsUpdated)
+      return next
+    })
+
+    const openedClose = Effect.fn("GlobalHttpApi.openedClose")(function* (ctx: { payload: { worktree: string } }) {
+      const { worktree } = ctx.payload
+      const cfg = yield* config.getGlobal()
+      const next = (cfg.projects ?? []).filter((p) => p.worktree !== worktree)
+      yield* config.updateGlobal({ ...cfg, projects: next })
+      yield* Effect.sync(emitOpenedProjectsUpdated)
+      return next
+    })
+
+    const openedMeta = Effect.fn("GlobalHttpApi.openedMeta")(function* (ctx: {
+      payload: {
+        worktree: string
+        name?: string
+        icon?: { color?: string; override?: string; emoji?: string }
+        commands?: { start?: string }
+      }
+    }) {
+      const { worktree, ...patch } = ctx.payload
+      const cfg = yield* config.getGlobal()
+      const projects = cfg.projects ?? []
+      const idx = projects.findIndex((p) => p.worktree === worktree)
+      if (idx === -1) return projects
+      const existing = projects[idx]
+      const updated = {
+        ...existing,
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.commands !== undefined ? { commands: { ...existing.commands, ...patch.commands } } : {}),
+        ...(patch.icon !== undefined ? { icon: { ...existing.icon, ...patch.icon } } : {}),
+      }
+      const next = projects.map((p, i) => (i === idx ? updated : p))
+      yield* config.updateGlobal({ ...cfg, projects: next })
+      yield* Effect.sync(emitOpenedProjectsUpdated)
+      return next
+    })
+
+    const openedReorder = Effect.fn("GlobalHttpApi.openedReorder")(function* (ctx) {
+      const cfg = yield* config.getGlobal()
+      const next = (ctx as { payload: { projects: ConfigProject[] } }).payload.projects
+      yield* config.updateGlobal({ ...cfg, projects: next })
+      yield* Effect.sync(emitOpenedProjectsUpdated)
+      return next
+    })
+
     return handlers
       .handle("health", health)
       .handleRaw("event", event)
@@ -153,5 +234,10 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       .handle("configUpdate", configUpdate)
       .handle("dispose", dispose)
       .handleRaw("upgrade", upgradeRaw)
+      .handle("openedList", openedList)
+      .handle("openedOpen", openedOpen)
+      .handle("openedClose", openedClose)
+      .handle("openedMeta", openedMeta)
+      .handle("openedReorder", openedReorder)
   }),
 )

@@ -77,6 +77,7 @@ export type Event =
   | EventSessionNextCompactionEnded
   | EventServerConnected
   | EventGlobalDisposed
+  | EventProjectOpenedUpdated
 
 export type OAuth = {
   type: "oauth"
@@ -842,6 +843,7 @@ export type GlobalEvent = {
     | EventSessionNextCompactionEnded
     | EventServerConnected
     | EventGlobalDisposed
+    | EventProjectOpenedUpdated
     | SyncEventMessageUpdated
     | SyncEventMessageRemoved
     | SyncEventMessagePartUpdated
@@ -891,6 +893,27 @@ export type ServerConfig = {
   mdns?: boolean
   mdnsDomain?: string
   cors?: Array<string>
+}
+
+export type LocalServerConfig = {
+  enabled?: boolean
+  port?: number
+  username?: string
+  password?: string
+}
+
+export type ProjectConfig = {
+  worktree: string
+  name?: string
+  expanded?: boolean
+  icon?: {
+    override?: string
+    color?: string
+    emoji?: string
+  }
+  commands?: {
+    start?: string
+  }
 }
 
 export type PermissionActionConfig = "ask" | "allow" | "deny"
@@ -1106,6 +1129,8 @@ export type Config = {
   shell?: string
   logLevel?: LogLevel
   server?: ServerConfig
+  localServer?: LocalServerConfig
+  projects?: Array<ProjectConfig>
   command?: {
     [key: string]: {
       template: string
@@ -3010,6 +3035,14 @@ export type EventGlobalDisposed = {
   }
 }
 
+export type EventProjectOpenedUpdated = {
+  id: string
+  type: "project.opened.updated"
+  properties: {
+    [key: string]: unknown
+  }
+}
+
 export type SessionInfo = {
   id: string
   parentID?: string
@@ -3477,6 +3510,105 @@ export type GlobalUpgradeResponses = {
 }
 
 export type GlobalUpgradeResponse = GlobalUpgradeResponses[keyof GlobalUpgradeResponses]
+
+export type GlobalProjectOpenedCloseData = {
+  body?: {
+    worktree: string
+  }
+  path?: never
+  query?: never
+  url: "/global/project/opened"
+}
+
+export type GlobalProjectOpenedCloseResponses = {
+  /**
+   * Updated opened projects list
+   */
+  200: Array<ProjectConfig>
+}
+
+export type GlobalProjectOpenedCloseResponse =
+  GlobalProjectOpenedCloseResponses[keyof GlobalProjectOpenedCloseResponses]
+
+export type GlobalProjectOpenedListData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/global/project/opened"
+}
+
+export type GlobalProjectOpenedListResponses = {
+  /**
+   * List of opened projects
+   */
+  200: Array<ProjectConfig>
+}
+
+export type GlobalProjectOpenedListResponse = GlobalProjectOpenedListResponses[keyof GlobalProjectOpenedListResponses]
+
+export type GlobalProjectOpenedMetaData = {
+  body?: {
+    worktree: string
+    name?: string
+    icon?: {
+      color?: string
+      override?: string
+      emoji?: string
+    }
+    commands?: {
+      start?: string
+    }
+  }
+  path?: never
+  query?: never
+  url: "/global/project/opened"
+}
+
+export type GlobalProjectOpenedMetaResponses = {
+  /**
+   * Updated project metadata
+   */
+  200: Array<ProjectConfig>
+}
+
+export type GlobalProjectOpenedMetaResponse = GlobalProjectOpenedMetaResponses[keyof GlobalProjectOpenedMetaResponses]
+
+export type GlobalProjectOpenedOpenData = {
+  body?: {
+    worktree: string
+  }
+  path?: never
+  query?: never
+  url: "/global/project/opened"
+}
+
+export type GlobalProjectOpenedOpenResponses = {
+  /**
+   * Updated opened projects list
+   */
+  200: Array<ProjectConfig>
+}
+
+export type GlobalProjectOpenedOpenResponse = GlobalProjectOpenedOpenResponses[keyof GlobalProjectOpenedOpenResponses]
+
+export type GlobalProjectOpenedReorderData = {
+  body?: {
+    projects: Array<ProjectConfig>
+  }
+  path?: never
+  query?: never
+  url: "/global/project/opened"
+}
+
+export type GlobalProjectOpenedReorderResponses = {
+  /**
+   * Reordered opened projects list
+   */
+  200: Array<ProjectConfig>
+}
+
+export type GlobalProjectOpenedReorderResponse =
+  GlobalProjectOpenedReorderResponses[keyof GlobalProjectOpenedReorderResponses]
 
 export type EventSubscribeData = {
   body?: never
