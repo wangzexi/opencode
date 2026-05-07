@@ -22,6 +22,16 @@ import { serviceUse } from "@/effect/service-use"
 
 const log = Log.create({ service: "project" })
 
+const AVATAR_COLORS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
+
+function pickDefaultColor(worktree: string): string {
+  let hash = 0
+  for (let i = 0; i < worktree.length; i++) {
+    hash = (hash * 31 + worktree.charCodeAt(i)) | 0
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
 const ProjectVcs = Schema.Literal("git")
 
 const ProjectIcon = Schema.Struct({
@@ -278,6 +288,7 @@ export const layer: Layer.Layer<
             id: data.id,
             worktree: data.worktree,
             vcs: data.vcs,
+            icon: { color: pickDefaultColor(data.worktree) },
             sandboxes: [] as string[],
             time: { created: Date.now(), updated: Date.now() },
           }

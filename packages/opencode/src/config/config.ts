@@ -39,6 +39,7 @@ import { ConfigProvider } from "./provider"
 import { ConfigReference } from "./reference"
 import { ConfigServer } from "./server"
 import { ConfigSkills } from "./skills"
+import { Project as ConfigProject } from "./projects"
 import { ConfigVariable } from "./variable"
 import { Npm } from "@opencode-ai/core/npm"
 
@@ -127,6 +128,14 @@ export const Info = Schema.Struct({
   logLevel: Schema.optional(LogLevelRef).annotate({ description: "Log level" }),
   server: Schema.optional(ConfigServer.Server).annotate({
     description: "Server configuration for opencode serve and web commands",
+  }),
+  localServer: Schema.optional(ConfigServer.LocalServer).annotate({
+    description: "Desktop local server remote access configuration",
+  }),
+  projects: Schema.optional(
+    Schema.mutable(Schema.Array(ConfigProject)),
+  ).annotate({
+    description: "List of opened projects",
   }),
   command: Schema.optional(Schema.Record(Schema.String, ConfigCommand.Info)).annotate({
     description: "Command configuration, see https://opencode.ai/docs/commands",

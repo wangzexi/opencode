@@ -63,6 +63,7 @@ import { ConstrainDragXAxis, getDraggableId } from "@/utils/solid-dnd"
 import { DebugBar } from "@/components/debug-bar"
 import { Titlebar } from "@/components/titlebar"
 import { useServer } from "@/context/server"
+import { useOpenedProjects } from "@/context/opened-projects"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
 import {
@@ -117,6 +118,7 @@ export default function Layout(props: ParentProps) {
   const platform = usePlatform()
   const settings = useSettings()
   const server = useServer()
+  const openedProjects = useOpenedProjects()
   const notification = useNotification()
   const permission = usePermission()
   const navigate = useNavigate()
@@ -583,7 +585,7 @@ export default function Layout(props: ParentProps) {
     if (!untrack(() => state.autoselect)) return
 
     const list = layout.projects.list()
-    const last = server.projects.last()
+    const last = openedProjects.last()
 
     if (list.length === 0) {
       if (!last) return
@@ -1294,7 +1296,7 @@ export default function Layout(props: ParentProps) {
   async function navigateToProject(directory: string | undefined) {
     if (!directory) return
     const root = projectRoot(directory)
-    server.projects.touch(root)
+    openedProjects.touch(root)
     const project = layout.projects.list().find((item) => item.worktree === root)
     let dirs = project
       ? effectiveWorkspaceOrder(root, [root, ...(project.sandboxes ?? [])], store.workspaceOrder[root])
@@ -1808,7 +1810,7 @@ export default function Layout(props: ParentProps) {
           return
         }
 
-        if (server.projects.last() !== root) server.projects.touch(root)
+        if (openedProjects.last() !== root) openedProjects.touch(root)
 
         const changed = session !== activeRoute.session || dir !== activeRoute.directory
         if (changed) {
@@ -2044,24 +2046,24 @@ export default function Layout(props: ParentProps) {
     mobile?: boolean
     merged?: boolean
   }) => {
-    const project = panelProps.project
+    const selectedProject = panelProps.project
     const merged = createMemo(() => panelProps.mobile || (panelProps.merged ?? layout.sidebar.opened()))
     const hover = createMemo(() => !panelProps.mobile && panelProps.merged === false && !layout.sidebar.opened())
     const empty = createMemo(() => !params.dir && layout.projects.list().length === 0)
     const projectName = createMemo(() => {
-      const item = project()
+      const item = selectedProject()
       if (!item) return ""
       return item.name || getFilename(item.worktree)
     })
-    const projectId = createMemo(() => project()?.id ?? "")
-    const worktree = createMemo(() => project()?.worktree ?? "")
+    const projectId = createMemo(() => selectedProject()?.id ?? "")
+    const worktree = createMemo(() => selectedProject()?.worktree ?? "")
     const slug = createMemo(() => {
       const dir = worktree()
       if (!dir) return ""
       return base64Encode(dir)
     })
     const workspaces = createMemo(() => {
-      const item = project()
+      const item = selectedProject()
       if (!item) return [] as string[]
       return workspaceIds(item)
     })
@@ -2073,13 +2075,13 @@ export default function Layout(props: ParentProps) {
         .filter((directory) => notification.project.unseenCount(directory) > 0)
         .forEach((directory) => notification.project.markViewed(directory))
     const workspacesEnabled = createMemo(() => {
-      const item = project()
+      const item = selectedProject()
       if (!item) return false
       if (item.vcs !== "git") return false
       return layout.sidebar.workspaces(item.worktree)()
     })
     const canToggle = createMemo(() => {
-      const item = project()
+      const item = selectedProject()
       if (!item) return false
       return item.vcs === "git" || layout.sidebar.workspaces(item.worktree)()
     })
@@ -2101,7 +2103,8 @@ export default function Layout(props: ParentProps) {
         }}
       >
         <Show
-          when={project()}
+          when={selectedProject()}
+          keyed
           fallback={
             <Show when={empty()}>
               <div class="flex-1 min-h-0 -mt-4 flex items-center justify-center px-6 pb-64 text-center">
