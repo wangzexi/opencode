@@ -16,4 +16,22 @@ export const Server = Schema.Struct({
 }).annotate({ identifier: "ServerConfig" })
 export type Server = Schema.Schema.Type<typeof Server>
 
+export const LocalServer = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean).annotate({
+    description: "Enable remote access for the desktop local server",
+  }),
+  port: Schema.optional(PositiveInt).annotate({
+    description: "Port to listen on for desktop local server remote access",
+  }),
+  username: Schema.optional(Schema.String).annotate({
+    description: "Username for desktop local server remote access",
+  }),
+  password: Schema.optional(Schema.String).annotate({
+    description: "Password for desktop local server remote access",
+  }),
+})
+  .annotate({ identifier: "LocalServerConfig" })
+  .pipe(withStatics((s) => ({ zod: zod(s) })))
+export type LocalServer = Schema.Schema.Type<typeof LocalServer>
+
 export * as ConfigServer from "./server"

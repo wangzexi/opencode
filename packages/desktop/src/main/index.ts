@@ -20,9 +20,11 @@ import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
 import {
   getDefaultServerUrl,
+  getLocalServerConfig,
   getWslConfig,
   preferAppEnv,
   setDefaultServerUrl,
+  setLocalServerConfig,
   setWslConfig,
   spawnLocalServer,
   type SidecarListener,
@@ -114,8 +116,6 @@ const main = Effect.gen(function* () {
   try {
     process.chdir(homedir())
   } catch {}
-
-  process.env.OPENCODE_DISABLE_EMBEDDED_WEB_UI = "true"
 
   const appId = app.isPackaged ? APP_IDS[CHANNEL] : "ai.opencode.desktop.dev"
   const onboardingTestRoot = ((): string | undefined => {
@@ -223,6 +223,8 @@ const main = Effect.gen(function* () {
     consumeInitialDeepLinks: () => pendingDeepLinks.splice(0),
     getDefaultServerUrl: () => getDefaultServerUrl(),
     setDefaultServerUrl: (url) => setDefaultServerUrl(url),
+    getLocalServerConfig: () => getLocalServerConfig(),
+    setLocalServerConfig: (config) => setLocalServerConfig(config),
     getWslConfig: () => Promise.resolve(getWslConfig()),
     setWslConfig: (config: WslConfig) => setWslConfig(config),
     getDisplayBackend: async () => null,
@@ -255,32 +257,37 @@ const main = Effect.gen(function* () {
   })()
   let overlay: BrowserWindow | null = null
 
-  const port = yield* Effect.gen(function* () {
-    const fromEnv = process.env.OPENCODE_PORT
-    if (fromEnv) {
-      const parsed = Number.parseInt(fromEnv, 10)
-      if (!Number.isNaN(parsed)) return parsed
-    }
+  const localServer = getLocalServerConfig()
+  const port =
+    localServer.enabled && localServer.port !== null
+      ? localServer.port
+      : yield* Effect.gen(function* () {
+          const fromEnv = process.env.OPENCODE_PORT
+          if (fromEnv) {
+            const parsed = Number.parseInt(fromEnv, 10)
+            if (!Number.isNaN(parsed)) return parsed
+          }
 
-    const res = yield* Deferred.make<number, unknown>()
-    const server = createServer()
-    server.on("error", (e) => Deferred.failSync(res, () => e))
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address()
-      if (typeof address !== "object" || !address) {
-        server.close()
-        Deferred.failSync(res, () => new Error("Failed to get port"))
-        return
-      }
-      const port = address.port
-      server.close(() => Effect.runSync(Deferred.succeed(res, port)))
-    })
+          const res = yield* Deferred.make<number, unknown>()
+          const server = createServer()
+          server.on("error", (e) => Deferred.failSync(res, () => e))
+          server.listen(0, "127.0.0.1", () => {
+            const address = server.address()
+            if (typeof address !== "object" || !address) {
+              server.close()
+              Deferred.failSync(res, () => new Error("Failed to get port"))
+              return
+            }
+            const port = address.port
+            server.close(() => Effect.runSync(Deferred.succeed(res, port)))
+          })
 
-    return yield* Deferred.await(res)
-  })
-  const hostname = "127.0.0.1"
-  const url = `http://${hostname}:${port}`
-  const password = randomUUID()
+          return yield* Deferred.await(res)
+        })
+  const hostname = localServer.enabled ? "0.0.0.0" : "127.0.0.1"
+  const url = `http://127.0.0.1:${port}`
+  const username = localServer.enabled ? localServer.username.trim() : "opencode"
+  const password = localServer.enabled ? localServer.password.trim() : randomUUID().replaceAll("-", "").slice(0, 16)
 
   const loadingTask = yield* Effect.gen(function* () {
     logger.log("sidecar connection started", { url })
@@ -291,25 +298,34 @@ const main = Effect.gen(function* () {
       if (mainWindow) sendSqliteMigrationProgress(mainWindow, progress)
     })
 
-    ensureLoopbackNoProxy()
-    useEnvProxy()
-
     logger.log("spawning sidecar", { url })
     const { listener, health } = yield* Effect.promise(() =>
-      spawnLocalServer(hostname, port, password, {
-        needsMigration,
-        userDataPath: app.getPath("userData"),
-        onSqliteProgress: (progress) => initEmitter.emit("sqlite", progress),
-        onStdout: (message) => logger.log("sidecar stdout", { message }),
-        onStderr: (message) => logger.warn("sidecar stderr", { message }),
-        onExit: (code) => logger.warn("sidecar exited", { code }),
-      }),
+      spawnLocalServer(
+        hostname,
+        port,
+        username,
+        password,
+        () => {
+          ensureLoopbackNoProxy()
+          useEnvProxy()
+        },
+        {
+          needsMigration,
+          userDataPath: app.getPath("userData"),
+          onSqliteProgress: (progress) => initEmitter.emit("sqlite", progress),
+          onStdout: (message) => logger.log("sidecar stdout", { message }),
+          onStderr: (message) => logger.warn("sidecar stderr", { message }),
+          onExit: (code) => logger.warn("sidecar exited", { code }),
+        },
+      ),
     )
     server = listener
     yield* Deferred.succeed(serverReady, {
       url,
-      username: "opencode",
+      enabled: inbound.enabled,
+      username,
       password,
+      port,
     })
 
     yield* Effect.promise(() => health.wait).pipe(

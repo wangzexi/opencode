@@ -23,6 +23,12 @@ interface ServerRowProps extends ParentProps {
   dimmed?: boolean
   badge?: JSXElement
   showCredentials?: boolean
+  name?: string
+  details?: string[]
+  credentials?: {
+    username?: string
+    password?: string
+  }
 }
 
 export function ServerRow(props: ServerRowProps) {
@@ -30,7 +36,7 @@ export function ServerRow(props: ServerRowProps) {
   const [truncated, setTruncated] = createSignal(false)
   let nameRef: HTMLSpanElement | undefined
   let versionRef: HTMLSpanElement | undefined
-  const name = createMemo(() => serverName(props.conn))
+  const name = createMemo(() => props.name ?? serverName(props.conn))
 
   const check = () => {
     const nameTruncated = nameRef ? nameRef.scrollWidth > nameRef.clientWidth : false
@@ -53,7 +59,7 @@ export function ServerRow(props: ServerRowProps) {
 
   const tooltipValue = () => (
     <span class="flex items-center gap-2">
-      <span>{serverName(props.conn, true)}</span>
+      <span>{name()}</span>
       <Show when={props.status?.version}>
         <span class="text-text-invert-weak">v{props.status?.version}</span>
       </Show>
@@ -61,6 +67,15 @@ export function ServerRow(props: ServerRowProps) {
   )
 
   const badge = children(() => props.badge)
+  const details = createMemo(() => props.details?.filter(Boolean) ?? [])
+  const credentials = createMemo(() => {
+    if (props.credentials) return props.credentials
+    if (props.conn.type !== "http") return
+    return {
+      username: props.conn.http.username,
+      password: props.conn.http.password,
+    }
+  })
 
   return (
     <Tooltip
@@ -68,7 +83,7 @@ export function ServerRow(props: ServerRowProps) {
       value={tooltipValue()}
       contentStyle={{ "max-width": "none", "white-space": "nowrap" }}
       placement="top-start"
-      inactive={!truncated() && !props.conn.displayName}
+      inactive={!truncated() && !props.conn.displayName && !props.name}
     >
       <div class={props.class} classList={{ "opacity-50": props.dimmed }}>
         <div class="flex flex-col items-start min-w-0 w-full">
@@ -92,19 +107,21 @@ export function ServerRow(props: ServerRowProps) {
               {(badge) => badge()}
             </Show>
           </div>
-          <Show when={props.showCredentials && props.conn.type === "http" && props.conn}>
-            {(conn) => (
-              <div class="flex flex-row gap-3">
-                <span>
-                  {conn().http.username ? (
-                    <span class="text-text-weak">{conn().http.username}</span>
-                  ) : (
-                    <span class="text-text-weaker">{language.t("server.row.noUsername")}</span>
-                  )}
-                </span>
-                {conn().http.password && <span class="text-text-weak">••••••••</span>}
-              </div>
-            )}
+          <Show when={props.showCredentials && (details().length || credentials())}>
+            <div class="flex flex-row gap-3">
+              <Show when={details().length}>
+                <span class="text-text-weak">{details().join(" · ")}</span>
+              </Show>
+              <Show when={credentials()?.username}>
+                <span class="text-text-weak">{credentials()?.username}</span>
+              </Show>
+              <Show when={!details().length && credentials() && !credentials()?.username}>
+                <span class="text-text-weaker">{language.t("server.row.noUsername")}</span>
+              </Show>
+              <Show when={credentials()?.password}>
+                <span class="text-text-weak">••••••••</span>
+              </Show>
+            </div>
           </Show>
         </div>
         {props.children}
