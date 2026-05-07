@@ -307,11 +307,26 @@ describe("HttpApi UI fallback", () => {
     }),
   )
 
-  it.live("requires server password for the web UI", () =>
+  it.live("serves the web UI shell without auth even when a server password is set", () =>
     Effect.gen(function* () {
       Flag.OPENCODE_DISABLE_EMBEDDED_WEB_UI = true
 
-      const response = yield* uiApp({ password: "secret", username: "opencode" }).request("/")
+      const response = yield* uiApp({
+        password: "secret",
+        username: "opencode",
+        client: httpClient(new Response("<html>opencode</html>", { headers: { "content-type": "text/html" } })),
+      }).request("/")
+
+      expect(response.status).toBe(200)
+      expect(yield* responseText(response)).toBe("<html>opencode</html>")
+    }),
+  )
+
+  it.live("keeps non-public UI fallback paths protected without auth", () =>
+    Effect.gen(function* () {
+      Flag.OPENCODE_DISABLE_EMBEDDED_WEB_UI = true
+
+      const response = yield* uiApp({ password: "secret", username: "opencode" }).request("/session")
 
       expect(response.status).toBe(401)
       expect(response.headers.get("www-authenticate")).toBe('Basic realm="Secure Area"')
@@ -345,16 +360,21 @@ describe("HttpApi UI fallback", () => {
     }),
   )
 
-  // Regression for #25698 (Ope): the browser fetches the PWA manifest and
-  // its icons via flows that don't carry app-managed credentials (the
-  // `<link rel="manifest">` request is not under page-auth control), so the
-  // server returning 401 breaks PWA install. These specific public assets
-  // should bypass auth.
-  it.live("serves the PWA manifest without auth even when a server password is set", () =>
+  it.live("serves public UI assets without auth even when a server password is set", () =>
     Effect.gen(function* () {
       Flag.OPENCODE_DISABLE_EMBEDDED_WEB_UI = true
 
-      for (const path of ["/site.webmanifest", "/web-app-manifest-192x192.png", "/web-app-manifest-512x512.png"]) {
+      for (const path of [
+        "/assets/app.js",
+        "/site.webmanifest",
+        "/web-app-manifest-192x192.png",
+        "/web-app-manifest-512x512.png",
+        "/favicon-96x96-v3.png",
+        "/favicon-v3.svg",
+        "/favicon-v3.ico",
+        "/apple-touch-icon-v3.png",
+        "/social-share.png",
+      ]) {
         const response = yield* uiApp({
           password: "secret",
           username: "opencode",
