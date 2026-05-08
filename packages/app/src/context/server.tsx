@@ -205,6 +205,11 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     const current: Accessor<ServerConnection.Any | undefined> = createMemo(
       () => allServers().find((s) => ServerConnection.key(s) === state.active) ?? allServers()[0],
     )
+    const connectionKey = createMemo(() => {
+      const conn = current()
+      if (!conn) return state.active
+      return [ServerConnection.key(conn), conn.http.url, conn.http.username ?? "", conn.http.password ?? ""].join("\0")
+    })
 
     createEffect(() => {
       const current_ = current()
@@ -229,6 +234,9 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       isLocal,
       get key() {
         return state.active
+      },
+      get connectionKey() {
+        return connectionKey()
       },
       get name() {
         return serverName(current())
