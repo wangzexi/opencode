@@ -11,7 +11,7 @@ export type ServerReadyData = {
 export type SqliteMigrationProgress = { type: "InProgress"; value: number } | { type: "Done" }
 
 export type WslConfig = { enabled: boolean }
-export type InboundServerConfig = { enabled: boolean; username: string; password: string; port: number | null }
+export type LocalServerConfig = { enabled: boolean; username: string; password: string; port: number | null }
 
 export type LinuxDisplayBackend = "wayland" | "auto"
 export type TitlebarTheme = {
@@ -30,9 +30,8 @@ export type ElectronAPI = {
   consumeInitialDeepLinks: () => Promise<string[]>
   getDefaultServerUrl: () => Promise<string | null>
   setDefaultServerUrl: (url: string | null) => Promise<void>
-  getInboundServerConfig: () => Promise<InboundServerConfig>
-  getInboundRuntimeServerConfig: () => Promise<InboundServerConfig>
-  setInboundServerConfig: (config: InboundServerConfig) => Promise<void>
+  getLocalServerConfig: () => Promise<LocalServerConfig>
+  setLocalServerConfig: (config: LocalServerConfig) => Promise<void>
   getWslConfig: () => Promise<WslConfig>
   setWslConfig: (config: WslConfig) => Promise<void>
   getDisplayBackend: () => Promise<LinuxDisplayBackend | null>

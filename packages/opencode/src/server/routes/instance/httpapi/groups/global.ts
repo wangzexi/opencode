@@ -16,7 +16,6 @@ const OpenedMetaPayload = Schema.Struct({
     Schema.Struct({
       color: Schema.optional(Schema.String),
       override: Schema.optional(Schema.String),
-      emoji: Schema.optional(Schema.String),
     }),
   ),
   commands: Schema.optional(

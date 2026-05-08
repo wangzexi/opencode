@@ -14,7 +14,7 @@ import { createEffect, createMemo, createResource, createSignal, onCleanup, Show
 import { createStore, reconcile } from "solid-js/store"
 import { ServerHealthIndicator, ServerRow } from "@/components/server/server-row"
 import { useLanguage } from "@/context/language"
-import { type InboundServerConfig, usePlatform } from "@/context/platform"
+import { type LocalServerConfig, usePlatform } from "@/context/platform"
 import { normalizeServerUrl, ServerConnection, useServer } from "@/context/server"
 import { type ServerHealth, useCheckServerHealth } from "@/utils/server-health"
 
@@ -275,8 +275,8 @@ export function DialogSelectServer() {
   const { defaultKey, canDefault, setDefault } = useDefaultServer()
   const { previewStatus } = useServerPreview()
   const checkServerHealth = useCheckServerHealth()
-  const [inboundConfig] = createResource(() => platform.getInboundServerConfig?.())
-  const [savedInboundConfig, setSavedInboundConfig] = createSignal<InboundServerConfig>()
+  const [localServerConfig] = createResource(() => platform.getLocalServerConfig?.())
+  const [savedLocalServerConfig, setSavedLocalServerConfig] = createSignal<LocalServerConfig>()
   const [store, setStore] = createStore({
     status: {} as Record<ServerConnection.Key, ServerHealth | undefined>,
     addServer: {
@@ -432,10 +432,10 @@ export function DialogSelectServer() {
 
   const current = createMemo(() => items().find((x) => ServerConnection.key(x) === server.key) ?? items()[0])
   const canEditInbound = createMemo(
-    () => !!platform.getInboundServerConfig && !!platform.setInboundServerConfig && server.list.some((item) => item.type === "sidecar"),
+    () => !!platform.getLocalServerConfig && !!platform.setLocalServerConfig && server.list.some((item) => item.type === "sidecar"),
   )
   const localServerDetails = createMemo(() => {
-    const config = platform.inboundRuntimeServerConfig?.()
+    const config = platform.localServerRuntimeConfig?.()
     if (!config?.enabled || config.port === null) return
     return {
       name: "Local Server",
@@ -598,7 +598,7 @@ export function DialogSelectServer() {
       status: store.status[ServerConnection.key(conn)]?.healthy,
     })
   }
-  const syncInboundForm = (config: InboundServerConfig) => {
+  const syncInboundForm = (config: LocalServerConfig) => {
     setStore("inboundServer", {
       open: true,
       enabled: config.enabled,
@@ -613,7 +613,7 @@ export function DialogSelectServer() {
   const startInboundEdit = () => {
     resetAdd()
     resetEdit()
-    const config = savedInboundConfig() ?? inboundConfig.latest
+    const config = savedLocalServerConfig() ?? localServerConfig.latest
     if (config) {
       syncInboundForm(config)
       return
@@ -644,7 +644,7 @@ export function DialogSelectServer() {
     })
   }
   const saveInboundConfig = async () => {
-    if (!platform.setInboundServerConfig) return
+    if (!platform.setLocalServerConfig) return
 
     const port = parseInboundPort(store.inboundServer.port)
     if (store.inboundServer.enabled && port === null) {
@@ -664,7 +664,7 @@ export function DialogSelectServer() {
       password: store.inboundServer.password.trim(),
       port: port ?? null,
     }
-    const current = savedInboundConfig() ?? inboundConfig.latest
+    const current = savedLocalServerConfig() ?? localServerConfig.latest
     const changed =
       !current ||
       current.enabled !== next.enabled ||
@@ -679,8 +679,8 @@ export function DialogSelectServer() {
 
     setStore("inboundServer", "saving", true)
     try {
-      await platform.setInboundServerConfig(next)
-      setSavedInboundConfig(next)
+      await platform.setLocalServerConfig(next)
+      setSavedLocalServerConfig(next)
       showToast({
         variant: "success",
         icon: "circle-check",
@@ -745,7 +745,7 @@ export function DialogSelectServer() {
   })
   createEffect(() => {
     if (!store.inboundServer.open || store.inboundServer.hydrated) return
-    const config = savedInboundConfig() ?? inboundConfig()
+    const config = savedLocalServerConfig() ?? localServerConfig()
     if (!config) return
     syncInboundForm(config)
   })
@@ -791,7 +791,7 @@ export function DialogSelectServer() {
                 port={store.inboundServer.port}
                 portError={store.inboundServer.portError}
                 busy={store.inboundServer.saving}
-                loading={inboundConfig.state === "pending"}
+                loading={localServerConfig.state === "pending"}
                 onEnabledChange={setInboundEnabled}
                 onUsernameChange={(value) => setStore("inboundServer", "username", value)}
                 onPasswordChange={(value) => setStore("inboundServer", "password", value)}

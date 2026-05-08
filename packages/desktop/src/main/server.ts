@@ -1,16 +1,14 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import os from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, utilityProcess } from "electron"
 import type { Details } from "electron"
-import { DEFAULT_SERVER_URL_KEY, WSL_ENABLED_KEY } from "./constants"
+import { DEFAULT_SERVER_URL_KEY, LOCAL_SERVER_CONFIG_KEY, WSL_ENABLED_KEY } from "./constants"
 import { getUserShell, loadShellEnv } from "./shell-env"
 import { getStore } from "./store"
 import type { SqliteMigrationProgress } from "../preload/types"
 
 export type WslConfig = { enabled: boolean }
-export type InboundServerConfig = { enabled: boolean; username: string; password: string; port: number | null }
+export type LocalServerConfig = { enabled: boolean; username: string; password: string; port: number | null }
 
 export type HealthCheck = { wait: Promise<void> }
 
@@ -25,8 +23,7 @@ export type SidecarListener = { stop: () => Promise<void> }
 const SIDECAR_SERVICE_NAME = "opencode server"
 const SIDECAR_START_STALL_TIMEOUT = 60_000
 const SIDECAR_STOP_TIMEOUT = 6_000
-let runtimeInboundServerConfig: InboundServerConfig | null = null
-const emptyInboundServerConfig = { enabled: false, username: "", password: "", port: null } satisfies InboundServerConfig
+const emptyLocalServerConfig = { enabled: false, username: "", password: "", port: null } satisfies LocalServerConfig
 
 type SpawnLocalServerOptions = {
   needsMigration: boolean
@@ -60,25 +57,7 @@ export function setWslConfig(config: WslConfig) {
   getStore().set(WSL_ENABLED_KEY, config.enabled)
 }
 
-export function setRuntimeInboundServerConfig(config: InboundServerConfig) {
-  runtimeInboundServerConfig = config
-}
-
-function configDir() {
-  if (process.env.OPENCODE_CONFIG_DIR?.trim()) return process.env.OPENCODE_CONFIG_DIR.trim()
-  return join(process.env.XDG_CONFIG_HOME?.trim() || join(os.homedir(), ".config"), "opencode")
-}
-
-function configFile() {
-  const dir = configDir()
-  for (const name of ["opencode.jsonc", "opencode.json", "config.json"]) {
-    const file = join(dir, name)
-    if (existsSync(file)) return file
-  }
-  return join(dir, "opencode.jsonc")
-}
-
-function sanitizeInboundServerConfig(value: unknown): InboundServerConfig | undefined {
+function sanitizeLocalServerConfig(value: unknown): LocalServerConfig | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return
   const record = value as Record<string, unknown>
   return {
@@ -92,33 +71,11 @@ function sanitizeInboundServerConfig(value: unknown): InboundServerConfig | unde
   }
 }
 
-function parseConfigText(text: string) {
-  try {
-    return JSON.parse(text) as Record<string, unknown>
-  } catch {}
-  try {
-    return JSON.parse(
-      text
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/^\s*\/\/.*$/gm, "")
-        .replace(/,\s*([}\]])/g, "$1"),
-    ) as Record<string, unknown>
-  } catch {
-    return
-  }
+function readLocalServerConfigFromStore() {
+  return sanitizeLocalServerConfig(getStore().get(LOCAL_SERVER_CONFIG_KEY))
 }
 
-function readInboundServerConfigFromConfigFile() {
-  try {
-    const value = parseConfigText(readFileSync(configFile(), "utf8"))
-    if (!value) return
-    return sanitizeInboundServerConfig(value.localServer)
-  } catch {
-    return
-  }
-}
-
-function writableInboundServerConfig(config: InboundServerConfig) {
+function writableLocalServerConfig(config: LocalServerConfig) {
   return {
     enabled: config.enabled,
     ...(config.port !== null ? { port: config.port } : {}),
@@ -127,24 +84,12 @@ function writableInboundServerConfig(config: InboundServerConfig) {
   }
 }
 
-function writeInboundServerConfigToConfigFile(config: InboundServerConfig) {
-  const file = configFile()
-  mkdirSync(dirname(file), { recursive: true })
-  const next = writableInboundServerConfig(config)
-  const current = existsSync(file) ? (parseConfigText(readFileSync(file, "utf8")) ?? {}) : {}
-  writeFileSync(file, `${JSON.stringify({ ...current, localServer: next }, null, 2)}\n`)
+export function getLocalServerConfig(): LocalServerConfig {
+  return readLocalServerConfigFromStore() ?? emptyLocalServerConfig
 }
 
-export function getInboundServerConfig(): InboundServerConfig {
-  return readInboundServerConfigFromConfigFile() ?? emptyInboundServerConfig
-}
-
-export function getInboundRuntimeServerConfig(): InboundServerConfig {
-  return runtimeInboundServerConfig ?? emptyInboundServerConfig
-}
-
-export function setInboundServerConfig(config: InboundServerConfig) {
-  writeInboundServerConfigToConfigFile(config)
+export function setLocalServerConfig(config: LocalServerConfig) {
+  getStore().set(LOCAL_SERVER_CONFIG_KEY, writableLocalServerConfig(config))
 }
 
 export function preferAppEnv(userDataPath: string) {

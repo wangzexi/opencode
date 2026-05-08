@@ -15,7 +15,6 @@ export type ConfigProjectEntry = {
   icon?: {
     color?: string
     override?: string
-    emoji?: string
   }
   commands?: {
     start?: string
@@ -53,7 +52,7 @@ export const { use: useOpenedProjects, provider: OpenedProjectsProvider } = crea
       })
     }
 
-    const queryKey = createMemo(() => ["opened-projects", server.key] as const)
+    const queryKey = createMemo(() => ["opened-projects", server.connectionKey] as const)
 
     const query = createQuery(() => ({
       queryKey: queryKey(),

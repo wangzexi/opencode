@@ -132,11 +132,6 @@ export const Info = Schema.Struct({
   localServer: Schema.optional(ConfigServer.LocalServer).annotate({
     description: "Desktop local server remote access configuration",
   }),
-  projects: Schema.optional(
-    Schema.mutable(Schema.Array(ConfigProject)),
-  ).annotate({
-    description: "List of opened projects",
-  }),
   command: Schema.optional(Schema.Record(Schema.String, ConfigCommand.Info)).annotate({
     description: "Command configuration, see https://opencode.ai/docs/commands",
   }),

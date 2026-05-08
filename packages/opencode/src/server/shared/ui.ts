@@ -3,12 +3,19 @@ import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { Effect, Stream } from "effect"
 import { HttpBody, HttpClient, HttpClientRequest, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createHash } from "node:crypto"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { ProxyUtil } from "../proxy-util"
 
 const embeddedUIPromise = Flag.OPENCODE_DISABLE_EMBEDDED_WEB_UI
   ? Promise.resolve(null)
   : // @ts-expect-error - generated file at build time
-    import("opencode-web-ui.gen.ts").then((module) => module.default as Record<string, string>).catch(() => null)
+    import("opencode-web-ui.gen.ts")
+      .then((module) => module.default as Record<string, string>)
+      .catch((error) => {
+        console.warn("failed to load embedded web ui", error)
+        return null
+      })
 
 export const UI_UPSTREAM = new URL("https://app.opencode.ai")
 
@@ -47,7 +54,16 @@ export function upstreamURL(path: string) {
 
 export function embeddedUI() {
   if (Flag.OPENCODE_DISABLE_EMBEDDED_WEB_UI) return Promise.resolve(null)
-  return embeddedUIPromise
+  return embeddedUIPromise.then((ui) => {
+    if (!ui) return null
+    if (!ui["index.html"]) return null
+    return ui
+  })
+}
+
+export function embeddedUIFile(file: string) {
+  if (path.isAbsolute(file)) return file
+  return fileURLToPath(new URL(file, import.meta.url))
 }
 
 function notFound() {
@@ -71,8 +87,10 @@ export function serveEmbeddedUIEffect(
   const file = embeddedWebUI[requestPath.replace(/^\//, "")] ?? embeddedWebUI["index.html"] ?? null
   if (!file) return Effect.succeed(notFound())
 
-  return fs.readFile(file).pipe(
-    Effect.map((body) => embeddedUIResponse(file, body)),
+  const resolved = embeddedUIFile(file)
+
+  return fs.readFile(resolved).pipe(
+    Effect.map((body) => embeddedUIResponse(resolved, body)),
     Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(notFound())),
   )
 }

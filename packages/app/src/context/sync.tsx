@@ -14,6 +14,7 @@ import { useSDK } from "./sdk"
 import type { Message, Part } from "@opencode-ai/sdk/v2/client"
 import { SESSION_CACHE_LIMIT, dropSessionCaches, pickSessionCacheEvictions } from "./global-sync/session-cache"
 import { diffs as list, message as clean } from "@/utils/diffs"
+import { sessionListItems } from "@/utils/session-list"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 
@@ -589,7 +590,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           const [store, setStore] = globalSync.child(directory)
           setStore("limit", (x) => x + count)
           await client.session.list().then((x) => {
-            const sessions = (x.data ?? [])
+            const sessions = sessionListItems(x.data)
               .filter((s) => !!s?.id)
               .sort((a, b) => cmp(a.id, b.id))
               .slice(0, store.limit)

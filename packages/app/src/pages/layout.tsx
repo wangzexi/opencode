@@ -37,6 +37,7 @@ import { showToast, Toast, toaster } from "@opencode-ai/ui/toast"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { clearWorkspaceTerminals, getTerminalServerScope } from "@/context/terminal"
 import { dropSessionCaches, pickSessionCacheEvictions } from "@/context/global-sync/session-cache"
+import { sessionListItems } from "@/utils/session-list"
 import {
   clearSessionPrefetchInflight,
   clearSessionPrefetch,
@@ -1355,7 +1356,7 @@ export default function Layout(props: ParentProps) {
           path: { directory: item },
           session: await globalSDK.client.session
             .list({ directory: item })
-            .then((x) => x.data ?? [])
+            .then((x) => sessionListItems(x.data))
             .catch(() => []),
         })),
       ),
@@ -1575,7 +1576,7 @@ export default function Layout(props: ParentProps) {
 
     const sessions: Session[] = await globalSDK.client.session
       .list({ directory })
-      .then((x) => x.data ?? [])
+      .then((x) => sessionListItems(x.data))
       .catch(() => [])
 
     clearWorkspaceTerminals(
@@ -1710,7 +1711,7 @@ export default function Layout(props: ParentProps) {
     const refresh = async () => {
       const sessions = await globalSDK.client.session
         .list({ directory: props.directory })
-        .then((x) => x.data ?? [])
+        .then((x) => sessionListItems(x.data))
         .catch(() => [])
       const active = sessions.filter((session) => session.time.archived === undefined)
       setState({ sessions: active })
@@ -2122,7 +2123,6 @@ export default function Layout(props: ParentProps) {
               </div>
             </Show>
           }
-          keyed
         >
           {(project) => (
             <>

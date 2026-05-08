@@ -242,7 +242,7 @@ const createPlatform = (sidecar?: () => ServerReadyData | undefined): Platform =
     setDefaultServer: async (url: string | null) => {
       await window.api.setDefaultServerUrl(url)
     },
-    inboundRuntimeServerConfig: () => {
+    localServerRuntimeConfig: () => {
       const current = sidecar?.()
       if (!current) return undefined
       return {
@@ -252,20 +252,11 @@ const createPlatform = (sidecar?: () => ServerReadyData | undefined): Platform =
         port: current.port,
       }
     },
-    getInboundServerConfig: async () => {
-      return window.api.getInboundServerConfig()
+    getLocalServerConfig: async () => {
+      return window.api.getLocalServerConfig()
     },
-    getInboundRuntimeServerConfig: async () => {
-      const current = sidecar?.() ?? (await window.api.awaitInitialization(() => undefined))
-      return {
-        enabled: current.enabled,
-        username: current.username ?? "opencode",
-        password: current.password ?? "",
-        port: current.port,
-      }
-    },
-    setInboundServerConfig: async (config) => {
-      await window.api.setInboundServerConfig(config)
+    setLocalServerConfig: async (config) => {
+      await window.api.setLocalServerConfig(config)
     },
 
     getDisplayBackend: async () => {

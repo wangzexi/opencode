@@ -1,17 +1,18 @@
 import type { RootLoadArgs } from "./types"
+import { sessionListItems } from "@/utils/session-list"
 
 export async function loadRootSessionsWithFallback(input: RootLoadArgs) {
   try {
     const result = await input.list({ directory: input.directory, roots: true, limit: input.limit })
     return {
-      data: result.data,
+      data: sessionListItems(result.data),
       limit: input.limit,
       limited: true,
     } as const
   } catch {
     const result = await input.list({ directory: input.directory, roots: true })
     return {
-      data: result.data,
+      data: sessionListItems(result.data),
       limit: input.limit,
       limited: false,
     } as const

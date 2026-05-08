@@ -29,9 +29,7 @@ export const LocalServer = Schema.Struct({
   password: Schema.optional(Schema.String).annotate({
     description: "Password for desktop local server remote access",
   }),
-})
-  .annotate({ identifier: "LocalServerConfig" })
-  .pipe(withStatics((s) => ({ zod: zod(s) })))
+}).annotate({ identifier: "LocalServerConfig" })
 export type LocalServer = Schema.Schema.Type<typeof LocalServer>
 
 export * as ConfigServer from "./server"

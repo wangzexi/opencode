@@ -4,7 +4,7 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
 import type {
   InitStep,
-  InboundServerConfig,
+  LocalServerConfig,
   ServerReadyData,
   SqliteMigrationProgress,
   TitlebarTheme,
@@ -26,9 +26,8 @@ type Deps = {
   consumeInitialDeepLinks: () => Promise<string[]> | string[]
   getDefaultServerUrl: () => Promise<string | null> | string | null
   setDefaultServerUrl: (url: string | null) => Promise<void> | void
-  getInboundServerConfig: () => Promise<InboundServerConfig> | InboundServerConfig
-  getInboundRuntimeServerConfig: () => Promise<InboundServerConfig> | InboundServerConfig
-  setInboundServerConfig: (config: InboundServerConfig) => Promise<void> | void
+  getLocalServerConfig: () => Promise<LocalServerConfig> | LocalServerConfig
+  setLocalServerConfig: (config: LocalServerConfig) => Promise<void> | void
   getWslConfig: () => Promise<WslConfig>
   setWslConfig: (config: WslConfig) => Promise<void> | void
   getDisplayBackend: () => Promise<string | null>
@@ -56,10 +55,9 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("set-default-server-url", (_event: IpcMainInvokeEvent, url: string | null) =>
     deps.setDefaultServerUrl(url),
   )
-  ipcMain.handle("get-inbound-server-config", () => deps.getInboundServerConfig())
-  ipcMain.handle("get-inbound-runtime-server-config", () => deps.getInboundRuntimeServerConfig())
-  ipcMain.handle("set-inbound-server-config", (_event: IpcMainInvokeEvent, config: InboundServerConfig) =>
-    deps.setInboundServerConfig(config),
+  ipcMain.handle("get-local-server-config", () => deps.getLocalServerConfig())
+  ipcMain.handle("set-local-server-config", (_event: IpcMainInvokeEvent, config: LocalServerConfig) =>
+    deps.setLocalServerConfig(config),
   )
   ipcMain.handle("get-wsl-config", () => deps.getWslConfig())
   ipcMain.handle("set-wsl-config", (_event: IpcMainInvokeEvent, config: WslConfig) => deps.setWslConfig(config))

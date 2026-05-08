@@ -914,7 +914,6 @@ export type ServerConfig = {
   cors?: Array<string>
 }
 
-<<<<<<< HEAD
 export type LocalServerConfig = {
   enabled?: boolean
   port?: number

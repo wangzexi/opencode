@@ -6,5 +6,6 @@ export const CHANNEL: Channel = raw === "dev" || raw === "beta" || raw === "prod
 
 export const SETTINGS_STORE = "opencode.settings"
 export const DEFAULT_SERVER_URL_KEY = "defaultServerUrl"
+export const LOCAL_SERVER_CONFIG_KEY = "localServerConfig"
 export const WSL_ENABLED_KEY = "wslEnabled"
 export const UPDATER_ENABLED = app.isPackaged && CHANNEL !== "dev"

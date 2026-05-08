@@ -8,7 +8,7 @@ type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
 type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: string[]; extensions?: string[] }
 type SaveFilePickerOptions = { title?: string; defaultPath?: string }
 type UpdateInfo = { updateAvailable: boolean; version?: string }
-export type InboundServerConfig = {
+export type LocalServerConfig = {
   enabled: boolean
   username: string
   password: string
@@ -82,17 +82,14 @@ export type Platform = {
   /** Set the preferred display backend (desktop only) */
   setDisplayBackend?(backend: DisplayBackend): Promise<void>
 
-  /** Get inbound sidecar config (desktop only) */
-  getInboundServerConfig?(): Promise<InboundServerConfig>
+  /** Get local server config (desktop only) */
+  getLocalServerConfig?(): Promise<LocalServerConfig>
 
-  /** Get the inbound config currently used by the running sidecar (desktop only) */
-  getInboundRuntimeServerConfig?(): Promise<InboundServerConfig>
+  /** The local server config currently used by the running sidecar (desktop only) */
+  localServerRuntimeConfig?: Accessor<LocalServerConfig | undefined>
 
-  /** The inbound config currently used by the running sidecar (desktop only) */
-  inboundRuntimeServerConfig?: Accessor<InboundServerConfig | undefined>
-
-  /** Set inbound sidecar config (desktop only) */
-  setInboundServerConfig?(config: InboundServerConfig): Promise<void>
+  /** Set local server config (desktop only) */
+  setLocalServerConfig?(config: LocalServerConfig): Promise<void>
 
   /** Parse markdown to HTML using native parser (desktop only, returns unprocessed code blocks) */
   parseMarkdown?(markdown: string): Promise<string>

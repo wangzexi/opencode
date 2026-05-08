@@ -305,10 +305,6 @@ const main = Effect.gen(function* () {
         port,
         username,
         password,
-        () => {
-          ensureLoopbackNoProxy()
-          useEnvProxy()
-        },
         {
           needsMigration,
           userDataPath: app.getPath("userData"),
@@ -322,7 +318,7 @@ const main = Effect.gen(function* () {
     server = listener
     yield* Deferred.succeed(serverReady, {
       url,
-      enabled: inbound.enabled,
+      enabled: localServer.enabled,
       username,
       password,
       port,
