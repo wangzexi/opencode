@@ -15,7 +15,6 @@ export type ConfigProjectEntry = {
   icon?: {
     color?: string
     override?: string
-    emoji?: string
   }
   commands?: {
     start?: string

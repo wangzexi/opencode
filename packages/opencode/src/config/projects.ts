@@ -5,7 +5,6 @@ import { withStatics } from "@/util/schema"
 export const ProjectIcon = Schema.Struct({
   override: Schema.optional(Schema.String),
   color: Schema.optional(Schema.String),
-  emoji: Schema.optional(Schema.String),
 })
 
 export const ProjectCommands = Schema.Struct({

@@ -15,9 +15,11 @@ import * as Log from "@opencode-ai/core/util/log"
 import { lazy } from "../../util/lazy"
 import { Config } from "@/config/config"
 import { ConfigProjects } from "@/config/projects"
+import { Project } from "@/project/project"
 import { errors } from "../error"
 import { Event as ServerEvent } from "../event"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "../global-lifecycle"
+import { OpenedProjects } from "../shared/opened-projects"
 
 const log = Log.create({ service: "server" })
 
@@ -219,8 +221,14 @@ export const GlobalRoutes = lazy(() =>
         },
       }),
       async (c) => {
-        const cfg = await AppRuntime.runPromise(Config.Service.use((svc) => svc.getGlobal()))
-        return c.json(cfg.projects ?? [])
+        const projects = await AppRuntime.runPromise(
+          Effect.gen(function* () {
+            const config = yield* Config.Service
+            const project = yield* Project.Service
+            return yield* OpenedProjects.list(config, project)
+          }),
+        )
+        return c.json(projects)
       },
     )
     .post(
@@ -244,17 +252,13 @@ export const GlobalRoutes = lazy(() =>
       async (c) => {
         const input = c.req.valid("json")
         const next = await AppRuntime.runPromise(
-          Config.Service.use((svc) =>
-            Effect.gen(function* () {
-              const cfg = yield* svc.getGlobal()
-              const projects = cfg.projects ?? []
-              if (projects.some((project) => project.worktree === input.worktree)) return projects
-              const next = [{ worktree: input.worktree }, ...projects]
-              yield* svc.updateGlobal({ ...cfg, projects: next })
-              yield* Effect.sync(emitOpenedProjectsUpdated)
-              return next
-            }),
-          ),
+          Effect.gen(function* () {
+            const config = yield* Config.Service
+            const project = yield* Project.Service
+            const next = yield* OpenedProjects.open(config, project, input.worktree)
+            yield* Effect.sync(emitOpenedProjectsUpdated)
+            return next
+          }),
         )
         return c.json(next)
       },
@@ -280,15 +284,13 @@ export const GlobalRoutes = lazy(() =>
       async (c) => {
         const input = c.req.valid("json")
         const next = await AppRuntime.runPromise(
-          Config.Service.use((svc) =>
-            Effect.gen(function* () {
-              const cfg = yield* svc.getGlobal()
-              const next = (cfg.projects ?? []).filter((project) => project.worktree !== input.worktree)
-              yield* svc.updateGlobal({ ...cfg, projects: next })
-              yield* Effect.sync(emitOpenedProjectsUpdated)
-              return next
-            }),
-          ),
+          Effect.gen(function* () {
+            const config = yield* Config.Service
+            const project = yield* Project.Service
+            const next = yield* OpenedProjects.close(config, project, input.worktree)
+            yield* Effect.sync(emitOpenedProjectsUpdated)
+            return next
+          }),
         )
         return c.json(next)
       },
@@ -319,7 +321,6 @@ export const GlobalRoutes = lazy(() =>
             .object({
               color: z.string().optional(),
               override: z.string().optional(),
-              emoji: z.string().optional(),
             })
             .optional(),
           commands: z
@@ -332,24 +333,13 @@ export const GlobalRoutes = lazy(() =>
       async (c) => {
         const input = c.req.valid("json")
         const next = await AppRuntime.runPromise(
-          Config.Service.use((svc) =>
-            Effect.gen(function* () {
-              const cfg = yield* svc.getGlobal()
-              const projects = cfg.projects ?? []
-              const next = projects.map((project) => {
-                if (project.worktree !== input.worktree) return project
-                return {
-                  ...project,
-                  ...(input.name !== undefined ? { name: input.name } : {}),
-                  ...(input.icon !== undefined ? { icon: { ...project.icon, ...input.icon } } : {}),
-                  ...(input.commands !== undefined ? { commands: { ...project.commands, ...input.commands } } : {}),
-                }
-              })
-              yield* svc.updateGlobal({ ...cfg, projects: next })
-              yield* Effect.sync(emitOpenedProjectsUpdated)
-              return next
-            }),
-          ),
+          Effect.gen(function* () {
+            const config = yield* Config.Service
+            const project = yield* Project.Service
+            const next = yield* OpenedProjects.meta(config, project, input)
+            yield* Effect.sync(emitOpenedProjectsUpdated)
+            return next
+          }),
         )
         return c.json(next)
       },
@@ -375,14 +365,13 @@ export const GlobalRoutes = lazy(() =>
       async (c) => {
         const input = c.req.valid("json")
         const next = await AppRuntime.runPromise(
-          Config.Service.use((svc) =>
-            Effect.gen(function* () {
-              const cfg = yield* svc.getGlobal()
-              yield* svc.updateGlobal({ ...cfg, projects: input.projects })
-              yield* Effect.sync(emitOpenedProjectsUpdated)
-              return input.projects
-            }),
-          ),
+          Effect.gen(function* () {
+            const config = yield* Config.Service
+            const project = yield* Project.Service
+            const next = yield* OpenedProjects.reorder(config, project, input.projects)
+            yield* Effect.sync(emitOpenedProjectsUpdated)
+            return next
+          }),
         )
         return c.json(next)
       },

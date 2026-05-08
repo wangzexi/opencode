@@ -1,11 +1,13 @@
 import { Config } from "@/config/config"
 import type { Project as ConfigProject } from "@/config/projects"
+import { Project } from "@/project/project"
 import { GlobalBus, type GlobalEvent as GlobalBusEvent } from "@/bus/global"
 import { EffectBridge } from "@/effect/bridge"
 import { Bus } from "@/bus"
 import { Installation } from "@/installation"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
 import { Event as ServerEvent } from "@/server/event"
+import { OpenedProjects } from "@/server/shared/opened-projects"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import * as Log from "@opencode-ai/core/util/log"
 import { Effect, Queue, Schema } from "effect"
@@ -82,6 +84,7 @@ function eventResponse() {
 export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handlers) =>
   Effect.gen(function* () {
     const config = yield* Config.Service
+    const projects = yield* Project.Service
     const installation = yield* Installation.Service
     const bridge = yield* EffectBridge.make()
 
@@ -169,26 +172,17 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     })
 
     const openedList = Effect.fn("GlobalHttpApi.openedList")(function* () {
-      const cfg = yield* config.getGlobal()
-      return cfg.projects ?? []
+      return yield* OpenedProjects.list(config, projects)
     })
 
     const openedOpen = Effect.fn("GlobalHttpApi.openedOpen")(function* (ctx: { payload: { worktree: string } }) {
-      const { worktree } = ctx.payload
-      const cfg = yield* config.getGlobal()
-      const projects = cfg.projects ?? []
-      if (projects.some((p) => p.worktree === worktree)) return projects
-      const next = [{ worktree }, ...projects]
-      yield* config.updateGlobal({ ...cfg, projects: next })
+      const next = yield* OpenedProjects.open(config, projects, ctx.payload.worktree)
       yield* Effect.sync(emitOpenedProjectsUpdated)
       return next
     })
 
     const openedClose = Effect.fn("GlobalHttpApi.openedClose")(function* (ctx: { payload: { worktree: string } }) {
-      const { worktree } = ctx.payload
-      const cfg = yield* config.getGlobal()
-      const next = (cfg.projects ?? []).filter((p) => p.worktree !== worktree)
-      yield* config.updateGlobal({ ...cfg, projects: next })
+      const next = yield* OpenedProjects.close(config, projects, ctx.payload.worktree)
       yield* Effect.sync(emitOpenedProjectsUpdated)
       return next
     })
@@ -197,32 +191,21 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       payload: {
         worktree: string
         name?: string
-        icon?: { color?: string; override?: string; emoji?: string }
+        icon?: { color?: string; override?: string }
         commands?: { start?: string }
       }
     }) {
-      const { worktree, ...patch } = ctx.payload
-      const cfg = yield* config.getGlobal()
-      const projects = cfg.projects ?? []
-      const idx = projects.findIndex((p) => p.worktree === worktree)
-      if (idx === -1) return projects
-      const existing = projects[idx]
-      const updated = {
-        ...existing,
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.commands !== undefined ? { commands: { ...existing.commands, ...patch.commands } } : {}),
-        ...(patch.icon !== undefined ? { icon: { ...existing.icon, ...patch.icon } } : {}),
-      }
-      const next = projects.map((p, i) => (i === idx ? updated : p))
-      yield* config.updateGlobal({ ...cfg, projects: next })
+      const next = yield* OpenedProjects.meta(config, projects, ctx.payload)
       yield* Effect.sync(emitOpenedProjectsUpdated)
       return next
     })
 
     const openedReorder = Effect.fn("GlobalHttpApi.openedReorder")(function* (ctx) {
-      const cfg = yield* config.getGlobal()
-      const next = (ctx as { payload: { projects: ConfigProject[] } }).payload.projects
-      yield* config.updateGlobal({ ...cfg, projects: next })
+      const next = yield* OpenedProjects.reorder(
+        config,
+        projects,
+        (ctx as { payload: { projects: ConfigProject[] } }).payload.projects,
+      )
       yield* Effect.sync(emitOpenedProjectsUpdated)
       return next
     })
