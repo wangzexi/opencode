@@ -100,6 +100,9 @@ export function preferAppEnv(userDataPath: string) {
     OPENCODE_EXPERIMENTAL_FILEWATCHER: "true",
     OPENCODE_CLIENT: "desktop",
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
+    // In dev mode, serve the web UI from the local build output so remote
+    // browsers see the current local build instead of app.opencode.ai.
+    ...(!app.isPackaged ? { OPENCODE_DEV_UI_DIR: join(dirname(fileURLToPath(import.meta.url)), "../../../app/dist") } : {}),
   })
 }
 

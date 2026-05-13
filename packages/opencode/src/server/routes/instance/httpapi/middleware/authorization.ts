@@ -7,7 +7,9 @@ import { isPublicUIPath } from "@/server/shared/public-ui"
 
 const AUTH_TOKEN_QUERY = "auth_token"
 const UNAUTHORIZED = 401
-const WWW_AUTHENTICATE = 'Basic realm="Secure Area"'
+// Use Bearer scheme so browsers don't show a native auth dialog on 401.
+// The server still accepts Authorization: Basic credentials from the app.
+const WWW_AUTHENTICATE = 'Bearer realm="Secure Area"'
 
 // Avoid HttpApiSecurity alternatives here: Effect security middleware wraps the
 // full handler, so a downstream failure can make the next auth alternative run

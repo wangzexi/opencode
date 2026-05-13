@@ -17,7 +17,7 @@ const embeddedUIPromise = Flag.OPENCODE_DISABLE_EMBEDDED_WEB_UI
         return null
       })
 
-export const UI_UPSTREAM = new URL("https://app.opencode.ai")
+export const UI_UPSTREAM = new URL(Flag.OPENCODE_DEV_UI_URL ?? "https://app.opencode.ai")
 
 export const csp = (hash = "") =>
   `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'${hash ? ` 'sha256-${hash}'` : ""}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; media-src 'self' data:; connect-src * data:`
@@ -95,18 +95,38 @@ export function serveEmbeddedUIEffect(
   )
 }
 
+function serveLocalDirEffect(
+  requestPath: string,
+  fs: AppFileSystem.Interface,
+  dir: string,
+) {
+  const filePath = path.join(dir, requestPath === "/" ? "index.html" : requestPath)
+  return fs.readFile(filePath).pipe(
+    Effect.map((body) => embeddedUIResponse(filePath, body)),
+    Effect.catchReason("PlatformError", "NotFound", () =>
+      fs.readFile(path.join(dir, "index.html")).pipe(
+        Effect.map((body) => embeddedUIResponse(path.join(dir, "index.html"), body)),
+        Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(notFound())),
+      ),
+    ),
+  )
+}
+
 export function serveUIEffect(
   request: HttpServerRequest.HttpServerRequest,
   services: { fs: AppFileSystem.Interface; client: HttpClient.HttpClient },
 ) {
   return Effect.gen(function* () {
     const embeddedWebUI = yield* Effect.promise(() => embeddedUI())
-    const path = new URL(request.url, "http://localhost").pathname
+    const requestPath = new URL(request.url, "http://localhost").pathname
 
-    if (embeddedWebUI) return yield* serveEmbeddedUIEffect(path, services.fs, embeddedWebUI)
+    if (embeddedWebUI) return yield* serveEmbeddedUIEffect(requestPath, services.fs, embeddedWebUI)
+
+    // Dev mode: serve from local build directory if configured
+    if (Flag.OPENCODE_DEV_UI_DIR) return yield* serveLocalDirEffect(requestPath, services.fs, Flag.OPENCODE_DEV_UI_DIR)
 
     const response = yield* services.client.execute(
-      HttpClientRequest.make(request.method)(upstreamURL(path), {
+      HttpClientRequest.make(request.method)(upstreamURL(requestPath), {
         headers: ProxyUtil.headers(request.headers, { host: UI_UPSTREAM.host }),
         body: requestBody(request),
       }),
