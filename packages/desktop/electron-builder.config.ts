@@ -39,6 +39,10 @@ const getBase = (): Configuration => ({
   files: ["out/**/*", "resources/**/*"],
   extraResources: [
     {
+      from: "../../app/dist",
+      to: "web-dist",
+    },
+    {
       from: "native/",
       to: "native/",
       filter: ["index.js", "index.d.ts", "build/Release/mac_window.node", "swift-build/**"],

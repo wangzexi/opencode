@@ -117,6 +117,9 @@ export const authorizationLayer = Layer.effect(
     return Authorization.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        // Health endpoint must be public so the SPA can render before credentials
+        // are configured — otherwise the user can never reach the credential UI.
+        if (new URL(request.url, "http://localhost").pathname === "/global/health") return yield* effect
         return yield* credentialFromRequest(request).pipe(
           Effect.flatMap((credential) => validateCredential(effect, credential, config)),
         )
