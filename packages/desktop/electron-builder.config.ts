@@ -39,7 +39,7 @@ const getBase = (): Configuration => ({
   files: ["out/**/*", "resources/**/*"],
   extraResources: [
     {
-      from: "../../app/dist",
+      from: "../app/dist",
       to: "web-dist",
     },
     {
