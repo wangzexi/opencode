@@ -6,7 +6,6 @@ import { hasPtyConnectTicketURL } from "@/server/shared/pty-ticket"
 import { isPublicUIPath } from "@/server/shared/public-ui"
 
 const AUTH_TOKEN_QUERY = "auth_token"
-const AUTH_TOKEN_COOKIE = "oc_auth_token"
 const UNAUTHORIZED = 401
 // Use Bearer scheme so browsers don't show a native auth dialog on 401.
 // The server still accepts Authorization: Basic credentials from the app.
@@ -73,26 +72,11 @@ function credentialFromURL(url: URL, request: HttpServerRequest.HttpServerReques
   if (token) return decodeCredential(token)
   const match = /^Basic\s+(.+)$/i.exec(request.headers.authorization ?? "")
   if (match) return decodeCredential(match[1])
-  // Fall back to cookie set on a previous authenticated request
-  const cookieHeader = request.headers.cookie ?? ""
-  const cookieMatch = new RegExp(`(?:^|;\\s*)${AUTH_TOKEN_COOKIE}=([^;]+)`).exec(cookieHeader)
-  if (cookieMatch) return decodeCredential(cookieMatch[1])
   return Effect.succeed(emptyCredential())
 }
 
-function setCookieHeader(
-  response: HttpServerResponse.HttpServerResponse,
-  token: string,
-): HttpServerResponse.HttpServerResponse {
-  return HttpServerResponse.setHeader(
-    response,
-    "set-cookie",
-    `${AUTH_TOKEN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict`,
-  )
-}
-
 // Router middleware for all routes except the SPA catch-all. Requires auth for
-// non-public paths and sets a persistent cookie when auth_token is in the URL.
+// non-public paths (API, static assets, /doc). PTY ticket URLs bypass auth.
 export const authorizationRouterMiddleware = HttpRouter.middleware()(
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
@@ -104,7 +88,6 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
         const url = new URL(request.url, "http://localhost")
         if (isPublicUIPath(request.method, url.pathname)) return yield* effect
         if (hasPtyConnectTicketURL(url)) return yield* effect
-        const token = url.searchParams.get(AUTH_TOKEN_QUERY)
         const credential = yield* credentialFromURL(url, request)
         if (!ServerAuth.authorized(credential, config)) {
           return HttpServerResponse.empty({
@@ -112,37 +95,17 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
             headers: { "www-authenticate": WWW_AUTHENTICATE },
           })
         }
-        // Auth passed — get the response and attach cookie if token came via URL.
-        // Direct header manipulation avoids appendPreResponseHandler which does not
-        // fire reliably in the raw router middleware context.
-        const response = yield* (effect as unknown as Effect.Effect<HttpServerResponse.HttpServerResponse, never, never>)
-        return token ? setCookieHeader(response, token) : response
+        return yield* (effect as unknown as Effect.Effect<HttpServerResponse.HttpServerResponse, never, never>)
       })
   }),
 )
 
-// Router middleware for the SPA catch-all route (/*). Always serves content so
-// the browser can load the app shell at any subpath without a credential prompt.
-// API routes have their own auth layer; the SPA handles auth internally once loaded.
-// Sets a persistent cookie when a valid auth_token query param is supplied so that
-// subsequent SPA navigation (without the query param) remains authenticated.
+// Router middleware for the SPA catch-all route (/*). Always serves the app
+// shell so the browser can load the SPA at any subpath. The SPA reads the
+// auth_token query param client-side and carries credentials in Authorization
+// headers — no server-side session cookie is needed.
 export const uiRouterMiddleware = HttpRouter.middleware()(
-  Effect.gen(function* () {
-    const config = yield* ServerAuth.Config
-    if (!ServerAuth.required(config)) return (effect) => effect
-
-    return (effect) =>
-      Effect.gen(function* () {
-        const request = yield* HttpServerRequest.HttpServerRequest
-        const url = new URL(request.url, "http://localhost")
-        const token = url.searchParams.get(AUTH_TOKEN_QUERY)
-        // Always serve — the SPA handles auth internally via stored credentials.
-        const response = yield* (effect as unknown as Effect.Effect<HttpServerResponse.HttpServerResponse, never, never>)
-        if (!token) return response
-        const credential = yield* credentialFromURL(url, request)
-        return ServerAuth.authorized(credential, config) ? setCookieHeader(response, token) : response
-      })
-  }),
+  Effect.succeed((effect) => effect),
 )
 
 export const authorizationLayer = Layer.effect(

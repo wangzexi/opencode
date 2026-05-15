@@ -479,6 +479,9 @@ export const dict = {
 
   "error.page.title": "Something went wrong",
   "error.page.description": "An error occurred while loading the application.",
+  "error.page.auth.title": "Authentication required",
+  "error.page.auth.description": "This server requires a password. Open this page from the OpenCode desktop app, or use a URL that includes an auth token.",
+  "error.page.auth.action.home": "Go to home",
   "error.page.details.label": "Error Details",
   "error.page.action.restart": "Restart",
   "error.page.action.report": "Report Error",

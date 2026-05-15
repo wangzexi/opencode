@@ -465,6 +465,9 @@ export const dict = {
 
   "error.page.title": "出了点问题",
   "error.page.description": "加载应用程序时发生错误。",
+  "error.page.auth.title": "需要身份验证",
+  "error.page.auth.description": "此服务器需要密码。请通过 OpenCode 桌面应用打开此页面，或使用包含 auth token 的链接。",
+  "error.page.auth.action.home": "返回首页",
   "error.page.details.label": "错误详情",
   "error.page.action.restart": "重启",
   "error.page.action.report": "上报错误",
