@@ -153,9 +153,19 @@ export const authorizationLayer = Layer.effect(
     return Authorization.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
-        // Health endpoint must be public so the SPA can render before credentials
-        // are configured — otherwise the user can never reach the credential UI.
-        if (new URL(request.url, "http://localhost").pathname === "/global/health") return yield* effect
+        if (new URL(request.url, "http://localhost").pathname === "/global/health") {
+          // Allow unauthenticated probes so the SPA can discover the server before
+          // the user has entered credentials. But if credentials ARE supplied and
+          // wrong, return 401 — otherwise the health indicator stays green even
+          // when the configured password is incorrect.
+          const credential = yield* credentialFromRequest(request)
+          const hasCredentials = !!credential.username || Redacted.value(credential.password).length > 0
+          if (!hasCredentials || ServerAuth.authorized(credential, config)) return yield* effect
+          yield* HttpEffect.appendPreResponseHandler((_request, response) =>
+            Effect.succeed(HttpServerResponse.setHeader(response, "www-authenticate", WWW_AUTHENTICATE)),
+          )
+          return yield* new HttpApiError.Unauthorized({})
+        }
         return yield* credentialFromRequest(request).pipe(
           Effect.flatMap((credential) => validateCredential(effect, credential, config)),
         )
