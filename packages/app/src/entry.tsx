@@ -153,6 +153,20 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   })
 }
 
+// Intercept 401 responses: if credentials are stale and we're not on the home
+// page already, navigate to "/" so the user can re-authenticate.
+const _nativeFetch = globalThis.fetch.bind(globalThis)
+const _interceptedFetch = async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> => {
+  const response = await _nativeFetch(input, init)
+  if (response.status === 401 && window.location.pathname !== "/") {
+    window.location.href = "/"
+    return new Promise<Response>(() => {})
+  }
+  return response
+}
+Object.assign(_interceptedFetch, globalThis.fetch)
+globalThis.fetch = _interceptedFetch as unknown as typeof fetch
+
 if (root instanceof HTMLElement) {
   const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
   clearAuthToken()
