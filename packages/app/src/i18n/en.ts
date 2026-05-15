@@ -361,6 +361,7 @@ export const dict = {
   "dialog.server.inbound.portPlaceholder": "Port",
   "dialog.server.inbound.portRequired": "Enter a port",
   "dialog.server.inbound.portInvalid": "Enter a port between 1 and 65535",
+  "dialog.server.inbound.credentialInvalid": "The credentials do not match the running server. Check your username and password.",
   "server.row.noUsername": "no username",
 
   "dialog.project.edit.title": "Edit project",

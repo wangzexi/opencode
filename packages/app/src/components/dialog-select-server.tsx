@@ -677,6 +677,31 @@ export function DialogSelectServer() {
       return
     }
 
+    // When credentials are changing, verify the new credentials actually work
+    // against the currently running server before persisting them. This prevents
+    // saving a typo that would lock the user out on the next request.
+    const credentialsChanged = !current || current.username !== next.username || current.password !== next.password
+    if (credentialsChanged && next.enabled && next.password) {
+      const runtimeConfig = platform.localServerRuntimeConfig?.()
+      const runningPort = runtimeConfig?.port ?? current?.port
+      if (runningPort) {
+        const testHttp: ServerConnection.HttpBase = {
+          url: `http://localhost:${runningPort}`,
+          username: next.username || undefined,
+          password: next.password,
+        }
+        const result = await checkServerHealth(testHttp)
+        if (!result.healthy) {
+          showToast({
+            variant: "error",
+            title: language.t("common.requestFailed"),
+            description: language.t("dialog.server.inbound.credentialInvalid"),
+          })
+          return
+        }
+      }
+    }
+
     setStore("inboundServer", "saving", true)
     try {
       await platform.setLocalServerConfig(next)

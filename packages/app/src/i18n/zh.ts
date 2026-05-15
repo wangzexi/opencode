@@ -367,6 +367,7 @@ export const dict = {
   "dialog.server.inbound.portPlaceholder": "端口",
   "dialog.server.inbound.portRequired": "请输入端口",
   "dialog.server.inbound.portInvalid": "请输入 1 到 65535 之间的端口",
+  "dialog.server.inbound.credentialInvalid": "凭据与运行中的服务器不匹配，请检查用户名和密码。",
 
   "dialog.project.edit.title": "编辑项目",
   "dialog.project.edit.name": "名称",

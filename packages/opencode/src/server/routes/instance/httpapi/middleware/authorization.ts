@@ -6,6 +6,7 @@ import { hasPtyConnectTicketURL } from "@/server/shared/pty-ticket"
 import { isPublicUIPath } from "@/server/shared/public-ui"
 
 const AUTH_TOKEN_QUERY = "auth_token"
+const AUTH_TOKEN_COOKIE = "oc_auth_token"
 const UNAUTHORIZED = 401
 // Use Bearer scheme so browsers don't show a native auth dialog on 401.
 // The server still accepts Authorization: Basic credentials from the app.
@@ -72,6 +73,10 @@ function credentialFromURL(url: URL, request: HttpServerRequest.HttpServerReques
   if (token) return decodeCredential(token)
   const match = /^Basic\s+(.+)$/i.exec(request.headers.authorization ?? "")
   if (match) return decodeCredential(match[1])
+  // Fall back to cookie set on a previous authenticated request
+  const cookieHeader = request.headers.cookie ?? ""
+  const cookieMatch = new RegExp(`(?:^|;\\s*)${AUTH_TOKEN_COOKIE}=([^;]+)`).exec(cookieHeader)
+  if (cookieMatch) return decodeCredential(cookieMatch[1])
   return Effect.succeed(emptyCredential())
 }
 
@@ -102,9 +107,22 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
         const url = new URL(request.url, "http://localhost")
         if (isPublicUIPath(request.method, url.pathname)) return yield* effect
         if (hasPtyConnectTicketURL(url)) return yield* effect
-        return yield* credentialFromURL(url, request).pipe(
-          Effect.flatMap((credential) => validateRawCredential(effect, credential, config)),
-        )
+        const token = url.searchParams.get(AUTH_TOKEN_QUERY)
+        const credential = yield* credentialFromURL(url, request)
+        // When auth_token comes via URL and is valid, set a persistent cookie so the
+        // browser can navigate to SPA subpaths without repeating the query param.
+        if (token && ServerAuth.authorized(credential, config)) {
+          yield* HttpEffect.appendPreResponseHandler((_req, response) =>
+            Effect.succeed(
+              HttpServerResponse.setHeader(
+                response,
+                "set-cookie",
+                `${AUTH_TOKEN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict`,
+              ),
+            ),
+          )
+        }
+        return yield* validateRawCredential(effect, credential, config)
       })
   }),
 )
