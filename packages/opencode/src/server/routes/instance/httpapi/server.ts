@@ -57,7 +57,7 @@ import { serveUIEffect } from "@/server/shared/ui"
 import { ServerAuth } from "@/server/auth"
 import { InstanceHttpApi, RootHttpApi } from "./api"
 import { PublicApi } from "./public"
-import { authorizationLayer, authorizationRouterMiddleware } from "./middleware/authorization"
+import { authorizationLayer, authorizationRouterMiddleware, uiRouterMiddleware } from "./middleware/authorization"
 import { EventApi, eventHandlers } from "./event"
 import { configHandlers } from "./handlers/config"
 import { controlHandlers } from "./handlers/control"
@@ -112,6 +112,7 @@ const cors = (corsOptions?: CorsOptions) =>
 // - instanceApiRoutes: schema routes; auth is declared on each group and workspace context is provided below.
 // - uiRoute: raw catch-all fallback; auth is router middleware so public static assets can bypass it.
 const authOnlyRouterLayer = authorizationRouterMiddleware.layer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
+const uiAuthLayer = uiRouterMiddleware.layer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
 const httpApiAuthLayer = authorizationLayer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
 const rootApiRoutes = HttpApiBuilder.layer(RootHttpApi).pipe(
   Layer.provide([controlHandlers, globalHandlers]),
@@ -173,7 +174,7 @@ const uiRoute = HttpRouter.use((router) =>
     const client = yield* HttpClient.HttpClient
     yield* router.add("*", "/*", (request) => serveUIEffect(request, { fs, client }))
   }),
-).pipe(Layer.provide(authOnlyRouterLayer))
+).pipe(Layer.provide(uiAuthLayer))
 
 export function createRoutes(corsOptions?: CorsOptions) {
   return Layer.mergeAll(rootApiRoutes, eventApiRoutes, instanceRoutes, docRoute, uiRoute).pipe(

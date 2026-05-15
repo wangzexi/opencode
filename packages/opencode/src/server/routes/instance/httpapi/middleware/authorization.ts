@@ -80,22 +80,19 @@ function credentialFromURL(url: URL, request: HttpServerRequest.HttpServerReques
   return Effect.succeed(emptyCredential())
 }
 
-function validateRawCredential<A, E, R>(
-  effect: Effect.Effect<A, E, R>,
-  credential: ServerAuth.DecodedCredentials,
-  config: ServerAuth.Info,
-) {
-  if (!ServerAuth.required(config)) return effect
-  if (!ServerAuth.authorized(credential, config))
-    return Effect.succeed(
-      HttpServerResponse.empty({
-        status: UNAUTHORIZED,
-        headers: { "www-authenticate": WWW_AUTHENTICATE },
-      }),
-    )
-  return effect
+function setCookieHeader(
+  response: HttpServerResponse.HttpServerResponse,
+  token: string,
+): HttpServerResponse.HttpServerResponse {
+  return HttpServerResponse.setHeader(
+    response,
+    "set-cookie",
+    `${AUTH_TOKEN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict`,
+  )
 }
 
+// Router middleware for all routes except the SPA catch-all. Requires auth for
+// non-public paths and sets a persistent cookie when auth_token is in the URL.
 export const authorizationRouterMiddleware = HttpRouter.middleware()(
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
@@ -109,20 +106,41 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
         if (hasPtyConnectTicketURL(url)) return yield* effect
         const token = url.searchParams.get(AUTH_TOKEN_QUERY)
         const credential = yield* credentialFromURL(url, request)
-        // When auth_token comes via URL and is valid, set a persistent cookie so the
-        // browser can navigate to SPA subpaths without repeating the query param.
-        if (token && ServerAuth.authorized(credential, config)) {
-          yield* HttpEffect.appendPreResponseHandler((_req, response) =>
-            Effect.succeed(
-              HttpServerResponse.setHeader(
-                response,
-                "set-cookie",
-                `${AUTH_TOKEN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict`,
-              ),
-            ),
-          )
+        if (!ServerAuth.authorized(credential, config)) {
+          return HttpServerResponse.empty({
+            status: UNAUTHORIZED,
+            headers: { "www-authenticate": WWW_AUTHENTICATE },
+          })
         }
-        return yield* validateRawCredential(effect, credential, config)
+        // Auth passed — get the response and attach cookie if token came via URL.
+        // Direct header manipulation avoids appendPreResponseHandler which does not
+        // fire reliably in the raw router middleware context.
+        const response = yield* (effect as unknown as Effect.Effect<HttpServerResponse.HttpServerResponse, never, never>)
+        return token ? setCookieHeader(response, token) : response
+      })
+  }),
+)
+
+// Router middleware for the SPA catch-all route (/*). Always serves content so
+// the browser can load the app shell at any subpath without a credential prompt.
+// API routes have their own auth layer; the SPA handles auth internally once loaded.
+// Sets a persistent cookie when a valid auth_token query param is supplied so that
+// subsequent SPA navigation (without the query param) remains authenticated.
+export const uiRouterMiddleware = HttpRouter.middleware()(
+  Effect.gen(function* () {
+    const config = yield* ServerAuth.Config
+    if (!ServerAuth.required(config)) return (effect) => effect
+
+    return (effect) =>
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest
+        const url = new URL(request.url, "http://localhost")
+        const token = url.searchParams.get(AUTH_TOKEN_QUERY)
+        // Always serve — the SPA handles auth internally via stored credentials.
+        const response = yield* (effect as unknown as Effect.Effect<HttpServerResponse.HttpServerResponse, never, never>)
+        if (!token) return response
+        const credential = yield* credentialFromURL(url, request)
+        return ServerAuth.authorized(credential, config) ? setCookieHeader(response, token) : response
       })
   }),
 )
