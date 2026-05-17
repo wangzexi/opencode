@@ -344,6 +344,7 @@ export const dict = {
   "dialog.server.action.remove": "Remove server",
 
   "dialog.server.menu.edit": "Edit",
+  "dialog.server.menu.settings": "Settings",
   "dialog.server.menu.default": "Set as default",
   "dialog.server.menu.defaultRemove": "Remove default",
   "dialog.server.menu.delete": "Delete",
@@ -800,6 +801,7 @@ export const dict = {
   "settings.general.section.sounds": "Sound effects",
   "settings.general.section.feed": "Feed",
   "settings.general.section.display": "Display",
+  "settings.general.section.network": "Network",
 
   "settings.general.row.language.title": "Language",
   "settings.general.row.language.description": "Change the display language for OpenCode",
@@ -856,7 +858,6 @@ export const dict = {
   "settings.general.row.wayland.description": "Disable X11 fallback on Wayland. Requires restart.",
   "settings.general.row.wayland.tooltip":
     "On Linux with mixed refresh-rate monitors, native Wayland can be more stable.",
-
   "settings.general.row.releaseNotes.title": "Release notes",
   "settings.general.row.releaseNotes.description": "Show What's New popups after updates",
 

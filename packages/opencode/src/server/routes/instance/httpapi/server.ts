@@ -62,12 +62,7 @@ import { ServerAuth } from "@/server/auth"
 import { InstanceHttpApi, RootHttpApi } from "./api"
 import { V2Api } from "@opencode-ai/server/api"
 import { PublicApi } from "./public"
-import {
-  authorizationLayer,
-  authorizationRouterMiddleware,
-  ptyConnectAuthorizationLayer,
-  v2AuthorizationLayer,
-} from "./middleware/authorization"
+import { authorizationLayer, authorizationRouterMiddleware, uiRouterMiddleware } from "./middleware/authorization"
 import { EventApi } from "./groups/event"
 import { PtyConnectApi } from "./groups/pty"
 import { eventHandlers } from "./handlers/event"
@@ -114,11 +109,11 @@ const cors = (corsOptions?: CorsOptions) =>
 
 // Route tree:
 // - rootApiRoutes: typed /global/* and control routes; auth is declared by RootHttpApi.
-// - eventApiRoutes: typed SSE route with instance routing context and its existing API contract.
-// - ptyConnectApiRoutes: typed WebSocket upgrade route with ticket-aware auth.
-// - instanceApiRoutes: remaining typed instance routes.
-// - uiRoute: raw catch-all fallback; auth is router middleware so public static assets can bypass it.
+// - eventApiRoutes/rawInstanceRoutes: raw instance routes; auth and workspace routing happen as router middleware.
+// - instanceApiRoutes: schema routes; auth is declared on each group and workspace context is provided below.
+// - uiRoute: raw catch-all; served without auth so the SPA loads at any subpath.
 const authOnlyRouterLayer = authorizationRouterMiddleware.layer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
+const uiRouterLayer = uiRouterMiddleware.layer
 const httpApiAuthLayer = authorizationLayer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
 const ptyConnectHttpApiAuthLayer = ptyConnectAuthorizationLayer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
 const v2HttpApiAuthLayer = v2AuthorizationLayer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
@@ -184,7 +179,7 @@ const uiRoute = HttpRouter.use((router) =>
       serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi }),
     )
   }),
-).pipe(Layer.provide(authOnlyRouterLayer))
+).pipe(Layer.provide(uiRouterLayer))
 
 type RouteRequirements =
   | HttpRouter.HttpRouter
