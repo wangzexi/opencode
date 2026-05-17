@@ -3,35 +3,9 @@ import { Flag } from "@opencode-ai/core/flag/flag"
 import { Effect, Stream } from "effect"
 import { HttpBody, HttpClient, HttpClientRequest, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createHash } from "node:crypto"
-import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { ProxyUtil } from "../proxy-util"
-
-const SERVER_HOSTNAME = (() => {
-  try {
-    return os.hostname().replace(/\.local$/i, "")
-  } catch {
-    return ""
-  }
-})()
-
-function serverDisplayName(request: HttpServerRequest.HttpServerRequest) {
-  if (SERVER_HOSTNAME) return SERVER_HOSTNAME
-  const host = request.headers["host"] ?? ""
-  return host.split(":")[0] ?? ""
-}
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (c) =>
-    c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === '"' ? "&quot;" : "&#39;",
-  )
-}
-
-function rewriteTitle(html: string, name: string) {
-  if (!name) return html
-  return html.replace(/<title\b[^>]*>[\s\S]*?<\/title>/i, `<title>${escapeHtml(name)} - OpenCode</title>`)
-}
 
 const embeddedUIPromise = Flag.OPENCODE_DISABLE_EMBEDDED_WEB_UI
   ? Promise.resolve(null)
@@ -96,13 +70,11 @@ function notFound() {
   return HttpServerResponse.jsonUnsafe({ error: "Not Found" }, { status: 404 })
 }
 
-function embeddedUIResponse(file: string, body: Uint8Array, name: string) {
+function embeddedUIResponse(file: string, body: Uint8Array) {
   const mime = AppFileSystem.mimeType(file)
   const headers = new Headers({ "content-type": mime })
   if (mime.startsWith("text/html")) {
-    const rewritten = rewriteTitle(new TextDecoder().decode(body), name)
-    headers.set("content-security-policy", cspForHtml(rewritten))
-    return HttpServerResponse.raw(new TextEncoder().encode(rewritten), { headers })
+    headers.set("content-security-policy", cspForHtml(new TextDecoder().decode(body)))
   }
   return HttpServerResponse.raw(body, { headers })
 }
@@ -111,7 +83,6 @@ export function serveEmbeddedUIEffect(
   requestPath: string,
   fs: AppFileSystem.Interface,
   embeddedWebUI: Record<string, string>,
-  name: string,
 ) {
   const file = embeddedWebUI[requestPath.replace(/^\//, "")] ?? embeddedWebUI["index.html"] ?? null
   if (!file) return Effect.succeed(notFound())
@@ -119,7 +90,7 @@ export function serveEmbeddedUIEffect(
   const resolved = embeddedUIFile(file)
 
   return fs.readFile(resolved).pipe(
-    Effect.map((body) => embeddedUIResponse(resolved, body, name)),
+    Effect.map((body) => embeddedUIResponse(resolved, body)),
     Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(notFound())),
   )
 }
@@ -128,14 +99,13 @@ function serveLocalDirEffect(
   requestPath: string,
   fs: AppFileSystem.Interface,
   dir: string,
-  name: string,
 ) {
   const filePath = path.join(dir, requestPath === "/" ? "index.html" : requestPath)
   return fs.readFile(filePath).pipe(
-    Effect.map((body) => embeddedUIResponse(filePath, body, name)),
+    Effect.map((body) => embeddedUIResponse(filePath, body)),
     Effect.catchReason("PlatformError", "NotFound", () =>
       fs.readFile(path.join(dir, "index.html")).pipe(
-        Effect.map((body) => embeddedUIResponse(path.join(dir, "index.html"), body, name)),
+        Effect.map((body) => embeddedUIResponse(path.join(dir, "index.html"), body)),
         Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(notFound())),
       ),
     ),
@@ -149,13 +119,11 @@ export function serveUIEffect(
   return Effect.gen(function* () {
     const embeddedWebUI = yield* Effect.promise(() => embeddedUI())
     const requestPath = new URL(request.url, "http://localhost").pathname
-    const name = serverDisplayName(request)
 
-    if (embeddedWebUI) return yield* serveEmbeddedUIEffect(requestPath, services.fs, embeddedWebUI, name)
+    if (embeddedWebUI) return yield* serveEmbeddedUIEffect(requestPath, services.fs, embeddedWebUI)
 
     // Dev mode: serve from local build directory if configured
-    if (Flag.OPENCODE_DEV_UI_DIR)
-      return yield* serveLocalDirEffect(requestPath, services.fs, Flag.OPENCODE_DEV_UI_DIR, name)
+    if (Flag.OPENCODE_DEV_UI_DIR) return yield* serveLocalDirEffect(requestPath, services.fs, Flag.OPENCODE_DEV_UI_DIR)
 
     const response = yield* services.client.execute(
       HttpClientRequest.make(request.method)(upstreamURL(requestPath), {
@@ -166,7 +134,7 @@ export function serveUIEffect(
     const headers = proxyResponseHeaders(response.headers)
 
     if (response.headers["content-type"]?.includes("text/html")) {
-      const body = rewriteTitle(yield* response.text, name)
+      const body = yield* response.text
       headers.set("Content-Security-Policy", cspForHtml(body))
       return HttpServerResponse.text(body, { status: response.status, headers })
     }

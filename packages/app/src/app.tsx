@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
 import { Effect } from "effect"
 import {
   type Component,
+  createEffect,
   createMemo,
   createResource,
   createSignal,
@@ -293,6 +294,15 @@ function ServerKey(props: ParentProps) {
   )
 }
 
+function DocumentTitle() {
+  const server = useServer()
+  createEffect(() => {
+    const name = server.name
+    document.title = name ? `${name} - OpenCode` : "OpenCode"
+  })
+  return null
+}
+
 export function AppInterface(props: {
   children?: JSX.Element
   defaultServer: ServerConnection.Key
@@ -306,6 +316,7 @@ export function AppInterface(props: {
       disableHealthCheck={props.disableHealthCheck}
       servers={props.servers}
     >
+      <DocumentTitle />
       <ConnectionGate disableHealthCheck={props.disableHealthCheck}>
         <ServerKey>
           <QueryProvider>
