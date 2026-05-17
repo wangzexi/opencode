@@ -304,6 +304,15 @@ function ServerKey(props: ParentProps) {
   )
 }
 
+function DocumentTitle() {
+  const server = useServer()
+  createEffect(() => {
+    const name = server.name
+    document.title = name ? `${name} - OpenCode` : "OpenCode"
+  })
+  return null
+}
+
 export function AppInterface(props: {
   children?: JSX.Element
   defaultServer: ServerConnection.Key
