@@ -317,6 +317,7 @@ describe("HttpApi UI fallback", () => {
           },
         },
         { "assets/app.js": "/$bunfs/root/assets/app.js" },
+        "",
       ).pipe(Effect.map(HttpServerResponse.toWeb))
 
       expect(response.status).toBe(200)
@@ -346,6 +347,7 @@ describe("HttpApi UI fallback", () => {
           },
         },
         { "index.html": "/$bunfs/root/index.html" },
+        "",
       ).pipe(Effect.map(HttpServerResponse.toWeb))
 
       const csp = response.headers.get("content-security-policy") ?? ""
