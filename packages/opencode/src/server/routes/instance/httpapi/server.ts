@@ -59,7 +59,7 @@ import { serveUIEffect } from "@/server/shared/ui"
 import { ServerAuth } from "@/server/auth"
 import { InstanceHttpApi, RootHttpApi } from "./api"
 import { PublicApi } from "./public"
-import { authorizationLayer, authorizationRouterMiddleware } from "./middleware/authorization"
+import { authorizationLayer, authorizationRouterMiddleware, uiRouterMiddleware } from "./middleware/authorization"
 import { EventApi } from "./groups/event"
 import { eventHandlers } from "./handlers/event"
 import { configHandlers } from "./handlers/config"
@@ -104,8 +104,9 @@ const cors = (corsOptions?: CorsOptions) =>
 // - rootApiRoutes: typed /global/* and control routes; auth is declared by RootHttpApi.
 // - eventApiRoutes/rawInstanceRoutes: raw instance routes; auth and workspace routing happen as router middleware.
 // - instanceApiRoutes: schema routes; auth is declared on each group and workspace context is provided below.
-// - uiRoute: raw catch-all fallback; auth is router middleware so public static assets can bypass it.
+// - uiRoute: raw catch-all; served without auth so the SPA loads at any subpath.
 const authOnlyRouterLayer = authorizationRouterMiddleware.layer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
+const uiRouterLayer = uiRouterMiddleware.layer
 const httpApiAuthLayer = authorizationLayer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
 const rootApiRoutes = HttpApiBuilder.layer(RootHttpApi).pipe(
   Layer.provide([controlHandlers, globalHandlers]),
@@ -170,7 +171,7 @@ const uiRoute = HttpRouter.use((router) =>
       serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi }),
     )
   }),
-).pipe(Layer.provide(authOnlyRouterLayer))
+).pipe(Layer.provide(uiRouterLayer))
 
 type RouteRequirements =
   | HttpRouter.HttpRouter

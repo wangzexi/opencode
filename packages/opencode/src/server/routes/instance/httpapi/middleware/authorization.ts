@@ -7,7 +7,9 @@ import { isPublicUIPath } from "@/server/shared/public-ui"
 
 const AUTH_TOKEN_QUERY = "auth_token"
 const UNAUTHORIZED = 401
-const WWW_AUTHENTICATE = 'Basic realm="Secure Area"'
+// Use Bearer scheme so browsers don't show a native auth dialog on 401.
+// The server still accepts Authorization: Basic credentials from the app.
+const WWW_AUTHENTICATE = 'Bearer realm="Secure Area"'
 
 // Avoid HttpApiSecurity alternatives here: Effect security middleware wraps the
 // full handler, so a downstream failure can make the next auth alternative run
@@ -73,22 +75,8 @@ function credentialFromURL(url: URL, request: HttpServerRequest.HttpServerReques
   return Effect.succeed(emptyCredential())
 }
 
-function validateRawCredential<A, E, R>(
-  effect: Effect.Effect<A, E, R>,
-  credential: ServerAuth.DecodedCredentials,
-  config: ServerAuth.Info,
-) {
-  if (!ServerAuth.required(config)) return effect
-  if (!ServerAuth.authorized(credential, config))
-    return Effect.succeed(
-      HttpServerResponse.empty({
-        status: UNAUTHORIZED,
-        headers: { "www-authenticate": WWW_AUTHENTICATE },
-      }),
-    )
-  return effect
-}
-
+// Router middleware for all routes except the SPA catch-all. Requires auth for
+// non-public paths (API, static assets, /doc). PTY ticket URLs bypass auth.
 export const authorizationRouterMiddleware = HttpRouter.middleware()(
   Effect.gen(function* () {
     const config = yield* ServerAuth.Config
@@ -100,11 +88,24 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
         const url = new URL(request.url, "http://localhost")
         if (isPublicUIPath(request.method, url.pathname)) return yield* effect
         if (hasPtyConnectTicketURL(url)) return yield* effect
-        return yield* credentialFromURL(url, request).pipe(
-          Effect.flatMap((credential) => validateRawCredential(effect, credential, config)),
-        )
+        const credential = yield* credentialFromURL(url, request)
+        if (!ServerAuth.authorized(credential, config)) {
+          return HttpServerResponse.empty({
+            status: UNAUTHORIZED,
+            headers: { "www-authenticate": WWW_AUTHENTICATE },
+          })
+        }
+        return yield* (effect as unknown as Effect.Effect<HttpServerResponse.HttpServerResponse, never, never>)
       })
   }),
+)
+
+// Router middleware for the SPA catch-all route (/*). Always serves the app
+// shell so the browser can load the SPA at any subpath. The SPA reads the
+// auth_token query param client-side and carries credentials in Authorization
+// headers — no server-side session cookie is needed.
+export const uiRouterMiddleware = HttpRouter.middleware()(
+  Effect.succeed((effect) => effect),
 )
 
 export const authorizationLayer = Layer.effect(
@@ -115,6 +116,19 @@ export const authorizationLayer = Layer.effect(
     return Authorization.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        if (new URL(request.url, "http://localhost").pathname === "/global/health") {
+          // Allow unauthenticated probes so the SPA can discover the server before
+          // the user has entered credentials. But if credentials ARE supplied and
+          // wrong, return 401 — otherwise the health indicator stays green even
+          // when the configured password is incorrect.
+          const credential = yield* credentialFromRequest(request)
+          const hasCredentials = !!credential.username || Redacted.value(credential.password).length > 0
+          if (!hasCredentials || ServerAuth.authorized(credential, config)) return yield* effect
+          yield* HttpEffect.appendPreResponseHandler((_request, response) =>
+            Effect.succeed(HttpServerResponse.setHeader(response, "www-authenticate", WWW_AUTHENTICATE)),
+          )
+          return yield* new HttpApiError.Unauthorized({})
+        }
         return yield* credentialFromRequest(request).pipe(
           Effect.flatMap((credential) => validateCredential(effect, credential, config)),
         )
