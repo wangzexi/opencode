@@ -1,0 +1,53 @@
+name: sync-upstream
+
+on:
+  schedule:
+    - cron: "17 2 * * 5"
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: zexi/dev
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Rebase zexi/dev onto upstream dev
+        run: |
+          git remote add upstream https://github.com/anomalyco/opencode.git
+          git fetch upstream dev
+          git rebase upstream/dev
+          git push --force-with-lease origin HEAD:zexi/dev
+
+      - name: Keep only fork workflows enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          allowlist='
+          .github/workflows/sync-upstream.yml
+          .github/workflows/zexi-electron.yml
+          '
+
+          gh workflow list -R "$GH_REPO" --limit 200 --json path \
+            | jq -r '.[].path' \
+            | while read -r workflow; do
+                if printf '%s\n' "$allowlist" | sed 's/^ *//' | grep -Fxq "$workflow"; then
+                  gh workflow enable "$workflow" -R "$GH_REPO" || true
+                else
+                  gh workflow disable "$workflow" -R "$GH_REPO" || true
+                fi
+              done
