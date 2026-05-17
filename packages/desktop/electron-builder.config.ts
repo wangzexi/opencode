@@ -26,6 +26,10 @@ const channel = (() => {
   return "dev"
 })()
 
+const getUpdateOwner = () => process.env.OPENCODE_UPDATE_OWNER?.trim() || "wangzexi"
+const getUpdateRepo = () => process.env.OPENCODE_UPDATE_REPO?.trim() || "opencode"
+const getBetaUpdateRepo = () => process.env.OPENCODE_UPDATE_BETA_REPO?.trim() || getUpdateRepo()
+
 const getBase = (): Configuration => ({
   artifactName: "opencode-desktop-${os}-${arch}.${ext}",
   directories: {
@@ -34,6 +38,10 @@ const getBase = (): Configuration => ({
   },
   files: ["out/**/*", "resources/**/*"],
   extraResources: [
+    {
+      from: "../app/dist",
+      to: "web-dist",
+    },
     {
       from: "native/",
       to: "native/",
@@ -96,7 +104,7 @@ function getConfig() {
         appId: "ai.opencode.desktop.beta",
         productName: "OpenCode Beta",
         protocols: { name: "OpenCode Beta", schemes: ["opencode"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "opencode-beta", channel: "latest" },
+        publish: { provider: "github", owner: getUpdateOwner(), repo: getBetaUpdateRepo(), channel: "latest" },
         rpm: { packageName: "opencode-beta" },
       }
     }
@@ -106,7 +114,7 @@ function getConfig() {
         appId: "ai.opencode.desktop",
         productName: "OpenCode",
         protocols: { name: "OpenCode", schemes: ["opencode"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "opencode", channel: "latest" },
+        publish: { provider: "github", owner: getUpdateOwner(), repo: getUpdateRepo(), channel: "latest" },
         rpm: { packageName: "opencode" },
       }
     }
