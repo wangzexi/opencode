@@ -209,6 +209,8 @@ import type {
   SessionPromptResponses,
   SessionRevertErrors,
   SessionRevertResponses,
+  SessionSchedulesErrors,
+  SessionSchedulesResponses,
   SessionShareErrors,
   SessionShareResponses,
   SessionShellErrors,
@@ -3638,6 +3640,76 @@ export class Session2 extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<SessionTodoResponses, SessionTodoErrors, ThrowOnError>({
       url: "/session/{sessionID}/todo",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List session scheduled tasks
+   *
+   * Retrieve the scheduled tasks (cron-driven recurring messages) configured for the specified session.
+   */
+  public schedules<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionSchedulesResponses, SessionSchedulesErrors, ThrowOnError>({
+      url: "/session/{sessionID}/schedule",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Delete session scheduled task
+   *
+   * Remove a single scheduled task from the session by id.
+   */
+  public deleteSchedule<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      scheduleID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "path", key: "scheduleID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      SessionDeleteScheduleResponses,
+      SessionDeleteScheduleErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/schedule/{scheduleID}",
       ...options,
       ...params,
     })

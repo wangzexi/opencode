@@ -25,6 +25,7 @@ import { Image } from "../../src/image/image"
 
 import { Question } from "../../src/question"
 import { Todo } from "../../src/session/todo"
+import { Schedule } from "../../src/session/schedule"
 import { Session } from "@/session/session"
 import { SessionMessageTable } from "@opencode-ai/core/session/sql"
 import { LLM } from "../../src/session/llm"
@@ -189,6 +190,7 @@ function makePrompt(input?: { processor?: "blocking" }) {
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
+  const scheduleSvc = Schedule.layer.pipe(Layer.provideMerge(deps))
   const registry = ToolRegistry.layer.pipe(
     Layer.provide(Skill.defaultLayer),
     Layer.provide(FetchHttpClient.layer),
@@ -200,6 +202,7 @@ function makePrompt(input?: { processor?: "blocking" }) {
     Layer.provide(Format.defaultLayer),
     Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
     Layer.provideMerge(todo),
+    Layer.provideMerge(scheduleSvc),
     Layer.provideMerge(question),
     Layer.provideMerge(deps),
   )
