@@ -8,6 +8,7 @@ import { SessionRevert } from "@/session/revert"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
+import { Schedule } from "@/session/schedule"
 import { MessageID, PartID, SessionID } from "@/session/schema"
 import { Snapshot } from "@/snapshot"
 import { Schema, Struct } from "effect"
@@ -77,6 +78,8 @@ export const SessionPaths = {
   get: `${root}/:sessionID`,
   children: `${root}/:sessionID/children`,
   todo: `${root}/:sessionID/todo`,
+  schedules: `${root}/:sessionID/schedule`,
+  deleteSchedule: `${root}/:sessionID/schedule/:scheduleID`,
   diff: `${root}/:sessionID/diff`,
   messages: `${root}/:sessionID/message`,
   message: `${root}/:sessionID/message/:messageID`,
@@ -159,6 +162,31 @@ export const SessionApi = HttpApi.make("session")
             identifier: "session.todo",
             summary: "Get session todos",
             description: "Retrieve the todo list associated with a specific session, showing tasks and action items.",
+          }),
+        ),
+        HttpApiEndpoint.get("schedules", SessionPaths.schedules, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(Schedule.Info), "List of scheduled tasks"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.schedules",
+            summary: "List session scheduled tasks",
+            description:
+              "Retrieve the scheduled tasks (cron-driven recurring messages) configured for the specified session.",
+          }),
+        ),
+        HttpApiEndpoint.delete("deleteSchedule", SessionPaths.deleteSchedule, {
+          params: { sessionID: SessionID, scheduleID: Schedule.ID },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Boolean, "Successfully deleted schedule"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.deleteSchedule",
+            summary: "Delete session scheduled task",
+            description: "Remove a single scheduled task from the session by id.",
           }),
         ),
         HttpApiEndpoint.get("diff", SessionPaths.diff, {

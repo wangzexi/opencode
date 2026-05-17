@@ -438,6 +438,244 @@
         ]
       }
     },
+    "/global/project/opened": {
+      "get": {
+        "tags": ["global"],
+        "operationId": "global.project.opened.list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of opened projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectConfig"
+                  },
+                  "description": "List of opened projects"
+                }
+              }
+            }
+          }
+        },
+        "description": "Get the list of opened projects with their metadata.",
+        "summary": "List opened projects",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.global.project.opened.list({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["global"],
+        "operationId": "global.project.opened.open",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Updated opened projects list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectConfig"
+                  },
+                  "description": "Updated opened projects list"
+                }
+              }
+            }
+          }
+        },
+        "description": "Add a project to the opened projects list.",
+        "summary": "Open a project",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "worktree": {
+                    "type": "string"
+                  }
+                },
+                "required": ["worktree"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.global.project.opened.open({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["global"],
+        "operationId": "global.project.opened.close",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Updated opened projects list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectConfig"
+                  },
+                  "description": "Updated opened projects list"
+                }
+              }
+            }
+          }
+        },
+        "description": "Remove a project from the opened projects list.",
+        "summary": "Close a project",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "worktree": {
+                    "type": "string"
+                  }
+                },
+                "required": ["worktree"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.global.project.opened.close({\n  ...\n})"
+          }
+        ]
+      },
+      "patch": {
+        "tags": ["global"],
+        "operationId": "global.project.opened.meta",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Updated project metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectConfig"
+                  },
+                  "description": "Updated project metadata"
+                }
+              }
+            }
+          }
+        },
+        "description": "Update name, icon, or commands for an opened project.",
+        "summary": "Update project metadata",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "worktree": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "object",
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "override": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "commands": {
+                    "type": "object",
+                    "properties": {
+                      "start": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["worktree"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.global.project.opened.meta({\n  ...\n})"
+          }
+        ]
+      },
+      "put": {
+        "tags": ["global"],
+        "operationId": "global.project.opened.reorder",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Reordered opened projects list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectConfig"
+                  },
+                  "description": "Reordered opened projects list"
+                }
+              }
+            }
+          }
+        },
+        "description": "Replace the entire opened projects list to reflect new ordering.",
+        "summary": "Reorder opened projects",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projects": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ProjectConfig"
+                    }
+                  }
+                },
+                "required": ["projects"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.global.project.opened.reorder({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/event": {
       "get": {
         "tags": ["event"],
@@ -5000,6 +5238,165 @@
         ]
       }
     },
+    "/session/{sessionID}/schedule": {
+      "get": {
+        "tags": ["session"],
+        "operationId": "session.schedules",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of scheduled tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Schedule"
+                  },
+                  "description": "List of scheduled tasks"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve the scheduled tasks (cron-driven recurring messages) configured for the specified session.",
+        "summary": "List session scheduled tasks",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.session.schedules({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionID}/schedule/{scheduleID}": {
+      "delete": {
+        "tags": ["session"],
+        "operationId": "session.deleteSchedule",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "scheduleID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully deleted schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Successfully deleted schedule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Remove a single scheduled task from the session by id.",
+        "summary": "Delete session scheduled task",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.session.deleteSchedule({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/session/{sessionID}/diff": {
       "get": {
         "tags": ["session"],
@@ -9119,6 +9516,18 @@
             "$ref": "#/components/schemas/EventSessionCompacted"
           },
           {
+            "$ref": "#/components/schemas/EventScheduleCreated"
+          },
+          {
+            "$ref": "#/components/schemas/EventScheduleDeleted"
+          },
+          {
+            "$ref": "#/components/schemas/EventScheduleRan1"
+          },
+          {
+            "$ref": "#/components/schemas/EventScheduleTriggered"
+          },
+          {
             "$ref": "#/components/schemas/EventVcsBranchUpdated"
           },
           {
@@ -9258,6 +9667,9 @@
           },
           {
             "$ref": "#/components/schemas/EventGlobalDisposed"
+          },
+          {
+            "$ref": "#/components/schemas/EventProjectOpenedUpdated"
           },
           {
             "$ref": "#/components/schemas/EventCatalogModelUpdated"
@@ -11499,6 +11911,18 @@
                 "$ref": "#/components/schemas/EventSessionCompacted"
               },
               {
+                "$ref": "#/components/schemas/EventScheduleCreated"
+              },
+              {
+                "$ref": "#/components/schemas/EventScheduleDeleted"
+              },
+              {
+                "$ref": "#/components/schemas/EventScheduleRan"
+              },
+              {
+                "$ref": "#/components/schemas/EventScheduleTriggered"
+              },
+              {
                 "$ref": "#/components/schemas/EventVcsBranchUpdated"
               },
               {
@@ -11638,6 +12062,9 @@
               },
               {
                 "$ref": "#/components/schemas/EventGlobalDisposed"
+              },
+              {
+                "$ref": "#/components/schemas/EventProjectOpenedUpdated"
               },
               {
                 "$ref": "#/components/schemas/EventCatalogModelUpdated"
@@ -11855,6 +12282,25 @@
         },
         "additionalProperties": false,
         "description": "Server configuration for opencode serve and web commands"
+      },
+      "LocalServerConfig": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "port": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "ReferenceConfigEntry": {
         "anyOf": [
@@ -12427,6 +12873,9 @@
           "server": {
             "$ref": "#/components/schemas/ServerConfig"
           },
+          "localServer": {
+            "$ref": "#/components/schemas/LocalServerConfig"
+          },
           "command": {
             "type": "object",
             "additionalProperties": {
@@ -12821,6 +13270,43 @@
             "additionalProperties": false
           }
         },
+        "additionalProperties": false
+      },
+      "ProjectConfig": {
+        "type": "object",
+        "properties": {
+          "worktree": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "expanded": {
+            "type": "boolean"
+          },
+          "icon": {
+            "type": "object",
+            "properties": {
+              "override": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "commands": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["worktree"],
         "additionalProperties": false
       },
       "Model": {
@@ -14135,6 +14621,99 @@
           }
         },
         "required": ["name", "data"],
+        "additionalProperties": false
+      },
+      "Schedule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string",
+            "pattern": "^ses"
+          },
+          "expression": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "lastRanAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "lastRunStatus": {
+            "type": "string",
+            "enum": ["ran", "skipped"]
+          },
+          "nextRun": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["id", "sessionID", "expression", "message", "createdAt", "lastRanAt", "lastRunStatus", "nextRun"],
         "additionalProperties": false
       },
       "TextPartInput": {
@@ -16953,6 +17532,148 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
+      "EventScheduleCreated": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["schedule.created"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "scheduleID": {
+                "type": "string"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              }
+            },
+            "required": ["scheduleID", "sessionID"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventScheduleDeleted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["schedule.deleted"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "scheduleID": {
+                "type": "string"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              }
+            },
+            "required": ["scheduleID", "sessionID"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventScheduleRan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["schedule.ran"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "scheduleID": {
+                "type": "string"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["ran", "skipped"]
+              },
+              "ranAt": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              }
+            },
+            "required": ["scheduleID", "sessionID", "status", "ranAt"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventScheduleTriggered": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["schedule.triggered"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "scheduleID": {
+                "type": "string"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["scheduleID", "sessionID", "message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
       "EventVcsBranchUpdated": {
         "type": "object",
         "properties": {
@@ -18639,6 +19360,24 @@
         "required": ["id", "type", "properties"],
         "additionalProperties": false
       },
+      "EventProjectOpenedUpdated": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["project.opened.updated"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {}
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
       "ModelV2Info": {
         "type": "object",
         "properties": {
@@ -19896,6 +20635,57 @@
               }
             },
             "required": ["message", "variant"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventScheduleRan1": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["schedule.ran"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "scheduleID": {
+                "type": "string"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["ran", "skipped"]
+              },
+              "ranAt": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  }
+                ]
+              }
+            },
+            "required": ["scheduleID", "sessionID", "status", "ranAt"],
             "additionalProperties": false
           }
         },

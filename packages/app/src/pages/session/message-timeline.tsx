@@ -20,6 +20,7 @@ import { getFilename } from "@opencode-ai/core/util/path"
 import { Popover as KobaltePopover } from "@kobalte/core/popover"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 import { SessionContextUsage } from "@/components/session-context-usage"
+import { SessionScheduleButton } from "@/components/session-schedule-button"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLanguage } from "@/context/language"
@@ -815,6 +816,7 @@ export function MessageTimeline(props: {
                   <Show when={sessionID()} keyed>
                     {(id) => (
                       <div class="shrink-0 flex items-center gap-3">
+                        <SessionScheduleButton />
                         <SessionContextUsage placement="bottom" />
                         <Show when={!parentID()}>
                           <DropdownMenu

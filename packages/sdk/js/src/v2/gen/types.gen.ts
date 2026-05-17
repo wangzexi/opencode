@@ -30,6 +30,10 @@ export type Event =
   | EventCommandExecuted
   | EventProjectUpdated
   | EventSessionCompacted
+  | EventScheduleCreated
+  | EventScheduleDeleted
+  | EventScheduleRan1
+  | EventScheduleTriggered
   | EventVcsBranchUpdated
   | EventWorkspaceReady
   | EventWorkspaceFailed
@@ -77,8 +81,8 @@ export type Event =
   | EventSessionNextCompactionEnded
   | EventServerConnected
   | EventGlobalDisposed
-  | EventCatalogModelUpdated
   | EventProjectOpenedUpdated
+  | EventCatalogModelUpdated
 
 export type OAuth = {
   type: "oauth"
@@ -816,6 +820,10 @@ export type GlobalEvent = {
     | EventCommandExecuted
     | EventProjectUpdated
     | EventSessionCompacted
+    | EventScheduleCreated
+    | EventScheduleDeleted
+    | EventScheduleRan
+    | EventScheduleTriggered
     | EventVcsBranchUpdated
     | EventWorkspaceReady
     | EventWorkspaceFailed
@@ -863,8 +871,8 @@ export type GlobalEvent = {
     | EventSessionNextCompactionEnded
     | EventServerConnected
     | EventGlobalDisposed
-    | EventCatalogModelUpdated
     | EventProjectOpenedUpdated
+    | EventCatalogModelUpdated
     | SyncEventMessageUpdated
     | SyncEventMessageRemoved
     | SyncEventMessagePartUpdated
@@ -921,20 +929,6 @@ export type LocalServerConfig = {
   port?: number
   username?: string
   password?: string
-}
-
-export type ProjectConfig = {
-  worktree: string
-  name?: string
-  expanded?: boolean
-  icon?: {
-    override?: string
-    color?: string
-    emoji?: string
-  }
-  commands?: {
-    start?: string
-  }
 }
 
 export type ReferenceConfigEntry =
@@ -1184,7 +1178,6 @@ export type Config = {
   logLevel?: LogLevel
   server?: ServerConfig
   localServer?: LocalServerConfig
-  projects?: Array<ProjectConfig>
   command?: {
     [key: string]: {
       template: string
@@ -1316,6 +1309,19 @@ export type Config = {
     primary_tools?: Array<string>
     continue_loop_on_deny?: boolean
     mcp_timeout?: number
+  }
+}
+
+export type ProjectConfig = {
+  worktree: string
+  name?: string
+  expanded?: boolean
+  icon?: {
+    override?: string
+    color?: string
+  }
+  commands?: {
+    start?: string
   }
 }
 
@@ -1761,6 +1767,17 @@ export type ProviderAuthError1 = {
     message?: string
     kind?: string
   }
+}
+
+export type Schedule = {
+  id: string
+  sessionID: string
+  expression: string
+  message: string
+  createdAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  lastRanAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  lastRunStatus: "ran" | "skipped"
+  nextRun: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
 }
 
 export type TextPartInput = {
@@ -2609,6 +2626,45 @@ export type EventSessionCompacted = {
   }
 }
 
+export type EventScheduleCreated = {
+  id: string
+  type: "schedule.created"
+  properties: {
+    scheduleID: string
+    sessionID: string
+  }
+}
+
+export type EventScheduleDeleted = {
+  id: string
+  type: "schedule.deleted"
+  properties: {
+    scheduleID: string
+    sessionID: string
+  }
+}
+
+export type EventScheduleRan = {
+  id: string
+  type: "schedule.ran"
+  properties: {
+    scheduleID: string
+    sessionID: string
+    status: "ran" | "skipped"
+    ranAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type EventScheduleTriggered = {
+  id: string
+  type: "schedule.triggered"
+  properties: {
+    scheduleID: string
+    sessionID: string
+    message: string
+  }
+}
+
 export type EventVcsBranchUpdated = {
   id: string
   type: "vcs.branch.updated"
@@ -3170,6 +3226,14 @@ export type EventGlobalDisposed = {
   }
 }
 
+export type EventProjectOpenedUpdated = {
+  id: string
+  type: "project.opened.updated"
+  properties: {
+    [key: string]: unknown
+  }
+}
+
 export type ModelV2Info = {
   id: string
   apiID: string
@@ -3273,14 +3337,6 @@ export type EventCatalogModelUpdated = {
   type: "catalog.model.updated"
   properties: {
     model: ModelV2Info
-  }
-}
-
-export type EventProjectOpenedUpdated = {
-  id: string
-  type: "project.opened.updated"
-  properties: {
-    [key: string]: unknown
   }
 }
 
@@ -3594,6 +3650,17 @@ export type EventTuiToastShow1 = {
     message: string
     variant: "info" | "success" | "warning" | "error"
     duration?: number
+  }
+}
+
+export type EventScheduleRan1 = {
+  id: string
+  type: "schedule.ran"
+  properties: {
+    scheduleID: string
+    sessionID: string
+    status: "ran" | "skipped"
+    ranAt: number | "NaN" | "Infinity" | "-Infinity"
   }
 }
 
@@ -3970,7 +4037,6 @@ export type GlobalProjectOpenedMetaData = {
     icon?: {
       color?: string
       override?: string
-      emoji?: string
     }
     commands?: {
       start?: string
@@ -5896,6 +5962,75 @@ export type SessionTodoResponses = {
 }
 
 export type SessionTodoResponse = SessionTodoResponses[keyof SessionTodoResponses]
+
+export type SessionSchedulesData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/schedule"
+}
+
+export type SessionSchedulesErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionSchedulesError = SessionSchedulesErrors[keyof SessionSchedulesErrors]
+
+export type SessionSchedulesResponses = {
+  /**
+   * List of scheduled tasks
+   */
+  200: Array<Schedule>
+}
+
+export type SessionSchedulesResponse = SessionSchedulesResponses[keyof SessionSchedulesResponses]
+
+export type SessionDeleteScheduleData = {
+  body?: never
+  path: {
+    sessionID: string
+    scheduleID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/schedule/{scheduleID}"
+}
+
+export type SessionDeleteScheduleErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionDeleteScheduleError = SessionDeleteScheduleErrors[keyof SessionDeleteScheduleErrors]
+
+export type SessionDeleteScheduleResponses = {
+  /**
+   * Successfully deleted schedule
+   */
+  200: boolean
+}
+
+export type SessionDeleteScheduleResponse = SessionDeleteScheduleResponses[keyof SessionDeleteScheduleResponses]
 
 export type SessionDiffData = {
   body?: never

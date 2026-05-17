@@ -362,7 +362,8 @@ export const dict = {
   "dialog.server.inbound.portPlaceholder": "Port",
   "dialog.server.inbound.portRequired": "Enter a port",
   "dialog.server.inbound.portInvalid": "Enter a port between 1 and 65535",
-  "dialog.server.inbound.credentialInvalid": "The credentials do not match the running server. Check your username and password.",
+  "dialog.server.inbound.credentialInvalid":
+    "The credentials do not match the running server. Check your username and password.",
   "server.row.noUsername": "no username",
 
   "dialog.project.edit.title": "Edit project",
@@ -415,6 +416,16 @@ export const dict = {
   "context.usage.cost": "Cost",
   "context.usage.clickToView": "Click to view context",
   "context.usage.view": "View context usage",
+
+  "schedule.button.label": "Scheduled tasks ({count})",
+  "schedule.popover.title": "Scheduled tasks",
+  "schedule.popover.subtitle": "{count} active",
+  "schedule.row.info": "Details",
+  "schedule.row.delete": "Delete schedule",
+  "schedule.tooltip.last": "Last:",
+  "schedule.tooltip.next": "Next:",
+  "schedule.tooltip.never": "—",
+  "schedule.tooltip.skipped": "(skipped — session busy)",
 
   "language.en": "English",
   "language.zh": "简体中文",
@@ -481,7 +492,8 @@ export const dict = {
   "error.page.title": "Something went wrong",
   "error.page.description": "An error occurred while loading the application.",
   "error.page.auth.title": "Authentication required",
-  "error.page.auth.description": "This server requires a password. Open this page from the OpenCode desktop app, or use a URL that includes an auth token.",
+  "error.page.auth.description":
+    "This server requires a password. Open this page from the OpenCode desktop app, or use a URL that includes an auth token.",
   "error.page.auth.action.home": "Go to home",
   "error.page.details.label": "Error Details",
   "error.page.action.restart": "Restart",
