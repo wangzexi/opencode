@@ -1,167 +1,135 @@
-# zexi/dev Fork — What's Different from Upstream
+# zexi/dev Fork — 与上游的差异说明
 
-This document records every intentional divergence from `anomalyco/opencode` so
-that after each weekly rebase the goals are clear and regressions can be caught
-quickly.
+本文档记录了相对于 `anomalyco/opencode` 的每一处有意改动，以便每次 rebase 后能快速明确目标、发现回归。
 
 ---
 
-## How to rebase
+## 如何 rebase
 
-The workflow `sync-upstream.yml` runs every Friday and opens a PR rebasing
-`zexi/dev` onto upstream automatically.
+`sync-upstream.yml` 工作流每周五自动运行，将 `zexi/dev` rebase 到上游并开 PR。
 
-Manual rebase onto a clean branch:
+手动整理到新分支的方法：
 
 ```sh
 git fetch upstream
 git checkout -b zexi/dev-clean upstream/dev
 git merge --squash zexi/dev
-# resolve conflicts, then commit in logical groups (see commits below)
+# 解决冲突，然后按功能分组提交（参考下方提交说明）
 ```
 
 ---
 
-## Fork commits (relative to upstream/dev)
+## Fork 提交列表（相对于 upstream/dev）
 
-### 1 · Release workflows — `dfa2df240`
+### 1 · 自定义发布工作流 — `dfa2df240`
 
-**Files:** `.github/workflows/zexi-electron.yml`, `.github/workflows/sync-upstream.yml`
+**涉及文件：** `.github/workflows/zexi-electron.yml`、`.github/workflows/sync-upstream.yml`
 
-Custom CI that builds and releases signed macOS (arm64 + notarization) and
-Windows (x64 + Azure trusted signing) Electron packages on every push to
-`zexi/dev`. Releases are tagged `zexi-electron-<stamp>-<sha>`; old releases are
-pruned to keep the 3 most recent.
+每次推送到 `zexi/dev` 时，自动构建并发布签名的 macOS（arm64 + 公证）和 Windows（x64 + Azure 可信签名）Electron 安装包。发布标签格式为 `zexi-electron-<时间戳>-<sha>`，只保留最近 3 个版本。
 
-The sync workflow disables all upstream workflows except these two.
+同步工作流会禁用上游所有其他工作流，只保留这两个。
 
-**Rebase risk:** Low — touches only `.github/`. Conflicts only if upstream
-renames its own workflow files.
+**Rebase 风险：** 低 — 只涉及 `.github/`，仅当上游重命名自己的工作流文件时才会冲突。
 
 ---
 
-### 2 · Configure desktop local server access and sync opened projects — `bd776bfa3`
+### 2 · 桌面本地服务器配置 + 已开启项目同步 — `bd776bfa3`
 
-**Files:** `packages/app/src/components/dialog-select-server.tsx`, `packages/app/src/components/server/server-row.tsx`, `packages/app/src/components/status-popover*.tsx`, `packages/desktop/src/main/{index,ipc,server,sidecar,constants}.ts`, `packages/desktop/src/preload/`, `packages/opencode/src/config/{server,projects}.ts`, `packages/opencode/src/server/shared/opened-projects{,.sql}.ts`, `packages/opencode/src/server/routes/instance/httpapi/{groups,handlers}/global.ts`, `packages/opencode/migration/20260511170500_opened_projects_db/migration.sql`, `packages/sdk/js/src/v2/gen/`, i18n files
+**涉及文件：** `packages/app/src/components/dialog-select-server.tsx`、`server-row.tsx`、`status-popover*.tsx`、`packages/desktop/src/main/{index,ipc,server,sidecar,constants}.ts`、`packages/desktop/src/preload/`、`packages/opencode/src/config/{server,projects}.ts`、`packages/opencode/src/server/shared/opened-projects{,.sql}.ts`、`handlers/global.ts`、DB 迁移文件、SDK 生成文件、i18n 文件
 
-**What it does:**
+**功能说明：**
 
-**a) Local server config UI**
-Adds UI for users to configure the local Electron-embedded server's hostname,
-port, username, and password from within the app. Config is persisted in
-Electron's store under `localServerConfig`. Key IPC channels:
-`get-local-server-config`, `set-local-server-config`.
+**a) 本地服务器配置 UI**
+在应用内新增 UI，允许用户配置 Electron 内嵌服务器的主机名、端口、用户名和密码。配置持久化到 Electron store 的 `localServerConfig` 字段下。新增 IPC 通道：`get-local-server-config`、`set-local-server-config`。
 
-**b) Opened projects sync**
-Moves opened-project state into a single `OpenedProjectsContext` (Solid.js)
-backed by a server-side SQLite table (`OpenedProjectTable`). All windows/tabs
-subscribe to the `project.opened.updated` SSE event and stay in sync without
-polling. Server-side API routes under `/global` handle list, open, close, and
-reorder.
+**b) 已开启项目同步**
+将已开启项目的状态统一到 `OpenedProjectsContext`（Solid.js），由服务端 SQLite 表（`OpenedProjectTable`）持久化。所有窗口/标签页订阅 `project.opened.updated` SSE 事件，无需轮询即可实时同步。服务端在 `/global` 下提供列表、打开、关闭、重排序接口。
 
-**Rebase risk:** High — touches many app-layer files. Most likely conflict
-points: `status-popover.tsx`, `dialog-select-server.tsx`, `handlers/global.ts`,
-and the SDK generated files.
+**Rebase 风险：** 高 — 涉及大量 app 层文件。最常见冲突点：`status-popover.tsx`、`dialog-select-server.tsx`、`handlers/global.ts` 以及 SDK 生成文件。
 
 ---
 
-### 3 · Embed and serve web UI from sidecar — `54660edfa`
+### 3 · 将 Web UI 内嵌到 sidecar 并提供服务 — `54660edfa`
 
-**Files:** `packages/core/src/flag/flag.ts`, `packages/desktop/electron-builder.config.ts`, `packages/desktop/electron.vite.config.ts`, `packages/desktop/scripts/prebuild.ts`, `packages/opencode/src/config/server.ts`, `packages/opencode/src/server/shared/{public-ui,ui}.ts`
+**涉及文件：** `packages/core/src/flag/flag.ts`、`packages/desktop/electron-builder.config.ts`、`electron.vite.config.ts`、`prebuild.ts`、`packages/opencode/src/config/server.ts`、`packages/opencode/src/server/shared/{public-ui,ui}.ts`
 
-**What it does:**
-Bundles the web SPA into the sidecar binary at build time via a generated
-module (`opencode-web-ui.gen.ts`). The sidecar serves it directly, with a
-priority chain:
+**功能说明：**
+构建时通过生成模块（`opencode-web-ui.gen.ts`）将 Web SPA 打包进 sidecar 二进制。sidecar 直接提供服务，优先级如下：
 
-1. Embedded bundle (`opencode-web-ui.gen.ts`) — production
-2. Local directory (`OPENCODE_DEV_UI_DIR`) — dev mode, set automatically in
-   Electron dev to `packages/app/dist`
-3. Proxy to `https://app.opencode.ai` (override with `OPENCODE_DEV_UI_URL`) —
-   fallback
+1. 内嵌 bundle（`opencode-web-ui.gen.ts`）— 生产环境
+2. 本地目录（`OPENCODE_DEV_UI_DIR`）— 开发模式，Electron dev 时自动指向 `packages/app/dist`
+3. 代理到 `https://app.opencode.ai`（可用 `OPENCODE_DEV_UI_URL` 覆盖）— 兜底
 
-Static assets (HTML shell, JS/CSS bundles, icons, favicons) under
-`isPublicUIPath()` are served without authentication so a remote browser can
-load the UI shell before entering credentials.
+`isPublicUIPath()` 匹配的静态资源（HTML shell、JS/CSS bundle、图标、favicon）无需认证即可访问，让远程浏览器在输入密码前就能加载页面骨架。
 
-**Prerequisite for dev:** build `packages/app` first:
+**开发模式前提：** 需先构建 `packages/app`：
 ```sh
 cd packages/app && bun run build
 ```
 
-**Rebase risk:** Medium — `ui.ts` conflicts if upstream restructures
-`serveUIEffect`. `flag.ts` conflicts if upstream adds flags at the same
-location.
+**Rebase 风险：** 中 — `ui.ts` 在上游重构 `serveUIEffect` 时会冲突；`flag.ts` 在上游同位置新增 flag 时会冲突。
 
 ---
 
-### 4 · Serve SPA at any subpath without auth, display auth-required page on 401 — `7bac50fd8`
+### 4 · SPA 任意子路径免认证访问 + 401 显示认证提示页 — `7bac50fd8`
 
-**Files:** `packages/opencode/src/server/routes/instance/httpapi/middleware/authorization.ts`, `packages/opencode/src/server/routes/instance/httpapi/server.ts`, `packages/app/src/pages/error.tsx`, `packages/app/src/pages/session.tsx`, `packages/app/src/i18n/{en,zh,zht}.ts`, `packages/opencode/test/server/httpapi-ui.test.ts`
+**涉及文件：** `packages/opencode/src/server/routes/instance/httpapi/middleware/authorization.ts`、`server.ts`、`packages/app/src/pages/error.tsx`、`session.tsx`、`packages/app/src/i18n/{en,zh,zht}.ts`、`packages/opencode/test/server/httpapi-ui.test.ts`
 
-**What it does:**
+**功能说明：**
 
-**a) SPA catch-all serves without auth**
-The `/*` route loads unconditionally (no credentials check) so the browser can
-bootstrap the SPA shell at any subpath. API routes under `/global/*` and
-instance routes remain fully protected.
+**a) SPA catch-all 免认证加载**
+`/*` 路由无条件响应，浏览器可在任意子路径下引导加载 SPA shell，无需服务端 session cookie。`/global/*` 和 instance 路由仍受完整保护。
 
-**b) Bearer auth scheme**
-`WWW-Authenticate` is `Bearer realm="Secure Area"` instead of `Basic`. This
-suppresses the browser's native credential popup on 401 while keeping the server
-fully functional — it still reads and validates `Authorization: Basic` headers
-sent by the desktop app.
+**b) Bearer 认证方案**
+`WWW-Authenticate` 响应头改为 `Bearer realm="Secure Area"`（原为 `Basic`），避免浏览器在 401 时弹出原生凭证对话框，同时保持服务端正常读取桌面端发来的 `Authorization: Basic` 头。
 
-**c) Auth-required error page**
-On 401 the SPA shows a localized "Authentication required" page with a manual
-"Go to home" button, breaking the infinite redirect loop that previously occurred
-when the app auto-navigated from `/` to the last opened project.
+**c) 认证提示错误页**
+401 时 SPA 展示本地化的"需要身份验证"页面，附带手动"返回首页"按钮，彻底消除了之前因 app 自动从 `/` 导航到最近打开项目而引发的无限重定向循环。
 
-**d) /global/health probe**
-Allows unauthenticated health probes so the SPA can discover the server before
-the user enters credentials. If credentials are supplied but wrong, returns 401.
+**d) /global/health 探针**
+允许未认证的健康检查，让 SPA 在用户输入密码前就能发现服务器。若凭证已提供但有误，仍返回 401。
 
-**Rebase risk:** Low for `authorization.ts` (small, self-contained). Medium for
-`error.tsx` if upstream changes the error page structure.
+**Rebase 风险：** `authorization.ts` 低（小而独立）；`error.tsx` 中（上游若改动错误页结构会冲突）。
 
 ---
 
-### 5 · Cap diff size to prevent SQLite/V8 crash on large files — `c37061538`
+### 5 · 限制 diff 大小，防止大文件导致 SQLite/V8 崩溃 — `c37061538`
 
-**Files:** `packages/opencode/src/tool/apply_patch.ts`, `packages/opencode/src/tool/edit.ts`
+**涉及文件：** `packages/opencode/src/tool/apply_patch.ts`、`packages/opencode/src/tool/edit.ts`
 
-Truncates patch/diff strings before storing them to prevent SQLite blob limits
-and V8 string size limits from crashing the process on very large file edits.
+存储前截断 patch/diff 字符串，防止超大 diff（如删除 50MB+ 二进制文件时产生的 ~380MB diff 字符串）触发 V8 内存上限，导致 sidecar 进程 SIGTRAP 崩溃。
 
-**Rebase risk:** Low — isolated tool change.
+对应上游 issue：https://github.com/anomalyco/opencode/issues/27657
+
+**Rebase 风险：** 低 — 改动独立，不影响其他模块。
 
 ---
 
-## Behavioral invariants
+## 行为不变量
 
-After every rebase, verify these before merging/releasing:
+每次 rebase 后，发布前请验证以下场景：
 
-| # | Scenario | Expected |
-|---|----------|----------|
-| 1 | Remote browser opens `http://<host>:4096/` (no credentials) | 200, loads UI shell (no browser auth popup) |
-| 2 | Remote browser fetches `/favicon-96x96-v3.png` | 200 (no auth required) |
-| 3 | SPA fetches `/global/config` without credentials | 401 with `WWW-Authenticate: Bearer …` (not `Basic`) |
-| 4 | Navigate to `http://<host>:4096/<project>/session/<id>` without credentials | Loads SPA shell, shows auth-required page, no infinite redirect |
-| 5 | Desktop app bottom-left shows server icon with current server URL | Visible, clickable |
-| 6 | Clicking server icon opens server config dialog | Dialog appears, shows local-server config panel in desktop mode |
-| 7 | Setting local server credentials and restarting → credentials persist | Config survives restart |
-| 8 | Opening a project in one browser tab → other tabs update | `project.opened.updated` event triggers sync |
-| 9 | Dev mode: remote browser sees fork UI (server icon in bottom left) | Not the upstream `app.opencode.ai` version |
+| # | 场景 | 预期结果 |
+|---|------|----------|
+| 1 | 远程浏览器访问 `http://<host>:4096/`（无凭证） | 200，加载 UI shell，不弹出认证对话框 |
+| 2 | 远程浏览器访问 `/favicon-96x96-v3.png` | 200，不需要认证 |
+| 3 | SPA 无凭证访问 `/global/config` | 401，`WWW-Authenticate: Bearer …`（不是 `Basic`） |
+| 4 | 无凭证访问 `http://<host>:4096/<project>/session/<id>` | 加载 SPA shell，显示认证提示页，不出现无限重定向 |
+| 5 | 桌面应用左下角显示服务器图标及当前服务器地址 | 可见、可点击 |
+| 6 | 点击服务器图标打开配置对话框 | 桌面模式下显示本地服务器配置面板 |
+| 7 | 设置本地服务器凭证后重启，凭证保持 | 配置在重启后仍存在 |
+| 8 | 在一个浏览器标签页中打开项目，其他标签页同步更新 | `project.opened.updated` 事件触发同步 |
+| 9 | 开发模式下，远程浏览器看到 fork 版 UI（左下角有服务器图标） | 不是上游 `app.opencode.ai` 的版本 |
 
-Quick automated check (run against a live local server on port 4096):
+快速自动化检查（在本地 4096 端口服务运行时执行）：
 
 ```sh
-# Root → 200
+# 根路径 → 200
 curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4096/
 # Favicon → 200
 curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4096/favicon-96x96-v3.png
-# API → 401 Bearer (not Basic)
+# API → 401 Bearer（不是 Basic）
 curl -sI http://127.0.0.1:4096/global/config | grep -i www-authenticate
 ```
 
-Expected output: `200`, `200`, `www-authenticate: Bearer realm="Secure Area"`.
+预期输出：`200`、`200`、`www-authenticate: Bearer realm="Secure Area"`。
