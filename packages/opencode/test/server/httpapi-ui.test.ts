@@ -387,7 +387,7 @@ describe("HttpApi UI fallback", () => {
       const response = yield* uiApp({ password: "secret", username: "opencode" }).request("/session")
 
       expect(response.status).toBe(401)
-      expect(response.headers.get("www-authenticate")).toBe('Basic realm="Secure Area"')
+      expect(response.headers.get("www-authenticate")).toBe('Bearer realm="Secure Area"')
     }),
   )
 
