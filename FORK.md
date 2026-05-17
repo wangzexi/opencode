@@ -8,23 +8,25 @@ quickly.
 
 ## How to rebase
 
-The workflow `sync-upstream.yml` runs every Friday and rebases `zexi/dev` onto
-upstream automatically. After a rebase, verify the [behavioral invariants](#behavioral-invariants) below.
+The workflow `sync-upstream.yml` runs every Friday and opens a PR rebasing
+`zexi/dev` onto upstream automatically.
 
-Manual rebase if needed:
+Manual rebase onto a clean branch:
 
 ```sh
 git fetch upstream
-git rebase --onto upstream/dev $(git merge-base HEAD upstream/dev) zexi/dev
+git checkout -b zexi/dev-clean upstream/dev
+git merge --squash zexi/dev
+# resolve conflicts, then commit in logical groups (see commits below)
 ```
 
 ---
 
 ## Fork commits (relative to upstream/dev)
 
-### 1 · Release workflows — `f4bb5ae17`
+### 1 · Release workflows — `dfa2df240`
 
-**Files:** `.github/workflows/zexi-electron.yml`, `.github/workflows/sync-upstream.yml`, `packages/desktop/electron-builder.config.ts`, `packages/script/src/index.ts`
+**Files:** `.github/workflows/zexi-electron.yml`, `.github/workflows/sync-upstream.yml`
 
 Custom CI that builds and releases signed macOS (arm64 + notarization) and
 Windows (x64 + Azure trusted signing) Electron packages on every push to
@@ -33,124 +35,105 @@ pruned to keep the 3 most recent.
 
 The sync workflow disables all upstream workflows except these two.
 
-**Rebase risk:** Low — touches only `.github/` and build config. Conflicts
-typically arise if upstream renames `electron-builder.config.ts`.
+**Rebase risk:** Low — touches only `.github/`. Conflicts only if upstream
+renames its own workflow files.
 
 ---
 
-### 2 · Configure desktop local server access — `78b5d1182`
+### 2 · Configure desktop local server access and sync opened projects — `bd776bfa3`
 
-**Files:** `packages/app/src/components/dialog-select-server.tsx`, `packages/app/src/components/server/server-row.tsx`, `packages/app/src/components/status-popover*.tsx`, `packages/desktop/src/main/{index,ipc,server,sidecar}.ts`, `packages/desktop/src/preload/`, `packages/opencode/src/config/server.ts`, i18n files
-
-**What it does:** Adds UI for users to configure the local Electron-embedded
-server's hostname, port, username, and password from within the app. Previously
-these could only be set via environment variables. The config is persisted in
-Electron's store under `localServerConfig` (see `constants.ts`).
-
-Key additions:
-- IPC channels: `get-local-server-config`, `set-local-server-config`
-- `getLocalServerConfig() / setLocalServerConfig()` in `server.ts`
-- Server dialog revamp in `dialog-select-server.tsx` — includes a local-server
-  config panel when running in desktop mode
-- Status bar server icon (bottom-left) opens the server selection/config dialog
-
-**Rebase risk:** High — touches many app-layer files. Conflicts are likely if
-upstream refactors `status-popover`, `dialog-select-server`, or the desktop
-main/preload plumbing.
-
----
-
-### 3 · Sync opened projects through server events — `7aa32f066`
-
-**Files:** `packages/app/src/context/opened-projects.tsx`, `packages/opencode/src/config/projects.ts`, `packages/opencode/src/server/routes/instance/httpapi/{groups,handlers}/global.ts`, `packages/sdk/js/src/v2/gen/`
-
-**What it does:** Moves opened-project state from scattered per-component state
-into a single `OpenedProjectsContext` (Solid.js). The context subscribes to the
-`project.opened.updated` server-sent event so all windows/tabs stay in sync
-without polling.
-
-Adds server-side API routes under `/global` for listing, opening, closing, and
-reordering opened projects. Also extends the JS SDK types accordingly.
-
-**Rebase risk:** Medium — `handlers/global.ts` and the SDK generated files are
-common conflict points if upstream adds routes in the same files.
-
----
-
-### 4 · Keep opened project metadata single-sourced — `02416fa48`
-
-**Files:** `packages/opencode/src/server/shared/opened-projects.ts` (new), `packages/opencode/src/server/shared/opened-projects.sql.ts` (new), `packages/desktop/src/main/{server,ipc,constants}.ts`, `packages/app/src/context/{platform,server,opened-projects}.tsx`, `packages/app/src/pages/layout.tsx`
-
-**What it does:** Persists opened-project metadata (name, icon, commands,
-ordering) in the opencode SQLite database via a dedicated `OpenedProjectTable`,
-rather than duplicating it across Electron store and server memory. This was a
-follow-up fix after the upstream rebase broke the original implementation.
-
-Also stores `localServerConfig` in Electron store (previously it lived only in
-memory), fixing the config disappearing on restart.
-
-**Rebase risk:** Medium-High — `opened-projects.ts` is a new file owned by this
-fork; conflicts arise only if upstream creates a file at the same path. The
-migration SQL file path must stay unique.
-
----
-
-### 5 · Allow web UI shell without auth — `b8c154e01`
-
-**Files:** `packages/opencode/src/server/shared/public-ui.ts`, `packages/opencode/test/server/httpapi-ui.test.ts`
-
-**What it does:** Static assets (HTML shell, JS bundles, CSS, icons, favicons)
-are served without requiring authentication, so a remote browser can load the
-app UI shell before the user has entered credentials. API routes remain
-protected.
-
-`isPublicUIPath()` returns `true` for:
-- `/`, `/index.html`, `/site.webmanifest`, manifest PNGs
-- `/assets/*` (JS/CSS bundles)
-- `/favicon*`, `/apple-touch-icon*`, `/social-share.*`
-
-**Why this matters:** Without this, a remote browser hitting the server gets a
-401 on the very first request and cannot load anything — the user has no way to
-enter credentials.
-
-**Rebase risk:** Low — `public-ui.ts` is a small file. Conflict only if upstream
-adds its own public-path logic here.
-
----
-
-### 6 · Serve local web UI in dev mode, suppress auth dialog — `dd426faec`
-
-**Files:** `packages/core/src/flag/flag.ts`, `packages/desktop/src/main/server.ts`, `packages/opencode/src/server/routes/instance/httpapi/middleware/authorization.ts`, `packages/opencode/src/server/shared/ui.ts`
+**Files:** `packages/app/src/components/dialog-select-server.tsx`, `packages/app/src/components/server/server-row.tsx`, `packages/app/src/components/status-popover*.tsx`, `packages/desktop/src/main/{index,ipc,server,sidecar,constants}.ts`, `packages/desktop/src/preload/`, `packages/opencode/src/config/{server,projects}.ts`, `packages/opencode/src/server/shared/opened-projects{,.sql}.ts`, `packages/opencode/src/server/routes/instance/httpapi/{groups,handlers}/global.ts`, `packages/opencode/migration/20260511170500_opened_projects_db/migration.sql`, `packages/sdk/js/src/v2/gen/`, i18n files
 
 **What it does:**
 
-**a) Bearer auth scheme** (`authorization.ts`)
-Changed `WWW-Authenticate` response header from `Basic` to `Bearer`. Chrome and
-Firefox show a native credentials popup for `Basic` on every 401, including XHR
-responses from the SPA. `Bearer` suppresses this popup while keeping the server
-fully functional — it still reads and validates `Authorization: Basic` headers
-sent by the desktop app.
+**a) Local server config UI**
+Adds UI for users to configure the local Electron-embedded server's hostname,
+port, username, and password from within the app. Config is persisted in
+Electron's store under `localServerConfig`. Key IPC channels:
+`get-local-server-config`, `set-local-server-config`.
 
-**b) Local build serving in dev mode** (`flag.ts`, `server.ts`, `ui.ts`)
-Added two env flags:
-- `OPENCODE_DEV_UI_DIR` — if set, the server serves static files from this
-  directory (with SPA index.html fallback) instead of proxying to
-  `https://app.opencode.ai`.
-- `OPENCODE_DEV_UI_URL` — overrides the upstream proxy base URL.
+**b) Opened projects sync**
+Moves opened-project state into a single `OpenedProjectsContext` (Solid.js)
+backed by a server-side SQLite table (`OpenedProjectTable`). All windows/tabs
+subscribe to the `project.opened.updated` SSE event and stay in sync without
+polling. Server-side API routes under `/global` handle list, open, close, and
+reorder.
 
-In desktop dev mode (`!app.isPackaged`), `preferAppEnv()` automatically sets
-`OPENCODE_DEV_UI_DIR` to `packages/app/dist`. This means remote browsers
-connecting to the Electron-local server see the locally built UI (with fork
-customizations like the server icon) instead of the production CDN version.
+**Rebase risk:** High — touches many app-layer files. Most likely conflict
+points: `status-popover.tsx`, `dialog-select-server.tsx`, `handlers/global.ts`,
+and the SDK generated files.
 
-**Prerequisite:** `packages/app` must be built before starting Electron in dev
-mode:
+---
+
+### 3 · Embed and serve web UI from sidecar — `54660edfa`
+
+**Files:** `packages/core/src/flag/flag.ts`, `packages/desktop/electron-builder.config.ts`, `packages/desktop/electron.vite.config.ts`, `packages/desktop/scripts/prebuild.ts`, `packages/opencode/src/config/server.ts`, `packages/opencode/src/server/shared/{public-ui,ui}.ts`
+
+**What it does:**
+Bundles the web SPA into the sidecar binary at build time via a generated
+module (`opencode-web-ui.gen.ts`). The sidecar serves it directly, with a
+priority chain:
+
+1. Embedded bundle (`opencode-web-ui.gen.ts`) — production
+2. Local directory (`OPENCODE_DEV_UI_DIR`) — dev mode, set automatically in
+   Electron dev to `packages/app/dist`
+3. Proxy to `https://app.opencode.ai` (override with `OPENCODE_DEV_UI_URL`) —
+   fallback
+
+Static assets (HTML shell, JS/CSS bundles, icons, favicons) under
+`isPublicUIPath()` are served without authentication so a remote browser can
+load the UI shell before entering credentials.
+
+**Prerequisite for dev:** build `packages/app` first:
 ```sh
 cd packages/app && bun run build
 ```
 
-**Rebase risk:** Low for `authorization.ts` (one constant). Medium for `ui.ts`
-if upstream restructures `serveUIEffect` or `serveEmbeddedUIEffect`.
+**Rebase risk:** Medium — `ui.ts` conflicts if upstream restructures
+`serveUIEffect`. `flag.ts` conflicts if upstream adds flags at the same
+location.
+
+---
+
+### 4 · Serve SPA at any subpath without auth, display auth-required page on 401 — `7bac50fd8`
+
+**Files:** `packages/opencode/src/server/routes/instance/httpapi/middleware/authorization.ts`, `packages/opencode/src/server/routes/instance/httpapi/server.ts`, `packages/app/src/pages/error.tsx`, `packages/app/src/pages/session.tsx`, `packages/app/src/i18n/{en,zh,zht}.ts`, `packages/opencode/test/server/httpapi-ui.test.ts`
+
+**What it does:**
+
+**a) SPA catch-all serves without auth**
+The `/*` route loads unconditionally (no credentials check) so the browser can
+bootstrap the SPA shell at any subpath. API routes under `/global/*` and
+instance routes remain fully protected.
+
+**b) Bearer auth scheme**
+`WWW-Authenticate` is `Bearer realm="Secure Area"` instead of `Basic`. This
+suppresses the browser's native credential popup on 401 while keeping the server
+fully functional — it still reads and validates `Authorization: Basic` headers
+sent by the desktop app.
+
+**c) Auth-required error page**
+On 401 the SPA shows a localized "Authentication required" page with a manual
+"Go to home" button, breaking the infinite redirect loop that previously occurred
+when the app auto-navigated from `/` to the last opened project.
+
+**d) /global/health probe**
+Allows unauthenticated health probes so the SPA can discover the server before
+the user enters credentials. If credentials are supplied but wrong, returns 401.
+
+**Rebase risk:** Low for `authorization.ts` (small, self-contained). Medium for
+`error.tsx` if upstream changes the error page structure.
+
+---
+
+### 5 · Cap diff size to prevent SQLite/V8 crash on large files — `c37061538`
+
+**Files:** `packages/opencode/src/tool/apply_patch.ts`, `packages/opencode/src/tool/edit.ts`
+
+Truncates patch/diff strings before storing them to prevent SQLite blob limits
+and V8 string size limits from crashing the process on very large file edits.
+
+**Rebase risk:** Low — isolated tool change.
 
 ---
 
@@ -163,11 +146,12 @@ After every rebase, verify these before merging/releasing:
 | 1 | Remote browser opens `http://<host>:4096/` (no credentials) | 200, loads UI shell (no browser auth popup) |
 | 2 | Remote browser fetches `/favicon-96x96-v3.png` | 200 (no auth required) |
 | 3 | SPA fetches `/global/config` without credentials | 401 with `WWW-Authenticate: Bearer …` (not `Basic`) |
-| 4 | Desktop app bottom-left shows server icon with current server URL | Visible, clickable |
-| 5 | Clicking server icon opens server config dialog | Dialog appears, shows local-server config panel |
-| 6 | Setting local server credentials and restarting → credentials persist | Config survives restart |
-| 7 | Opening a project in one browser tab → other tabs update | `project.opened.updated` event triggers sync |
-| 8 | Dev mode: remote browser sees fork UI (server icon in bottom left) | Not the upstream `app.opencode.ai` version |
+| 4 | Navigate to `http://<host>:4096/<project>/session/<id>` without credentials | Loads SPA shell, shows auth-required page, no infinite redirect |
+| 5 | Desktop app bottom-left shows server icon with current server URL | Visible, clickable |
+| 6 | Clicking server icon opens server config dialog | Dialog appears, shows local-server config panel in desktop mode |
+| 7 | Setting local server credentials and restarting → credentials persist | Config survives restart |
+| 8 | Opening a project in one browser tab → other tabs update | `project.opened.updated` event triggers sync |
+| 9 | Dev mode: remote browser sees fork UI (server icon in bottom left) | Not the upstream `app.opencode.ai` version |
 
 Quick automated check (run against a live local server on port 4096):
 
