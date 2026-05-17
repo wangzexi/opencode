@@ -17,6 +17,7 @@ import { useLanguage } from "@/context/language"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { decode64 } from "@/utils/base64"
+import { sessionListItems } from "@/utils/session-list"
 import { getRelativeTime } from "@/utils/time"
 
 type EntryType = "command" | "file" | "session"
@@ -210,7 +211,7 @@ function createSessionEntries(props: {
         return props.serverSDK.client.session
           .list({ directory, roots: true })
           .then((x) =>
-            (x.data ?? [])
+            sessionListItems(x.data)
               .filter((s) => !!s?.id)
               .map((s) => ({
                 id: s.id,

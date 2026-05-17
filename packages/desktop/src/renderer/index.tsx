@@ -74,7 +74,7 @@ const listenForDeepLinks = () => {
   return window.api.onDeepLink((urls) => emitDeepLinks(urls))
 }
 
-const createPlatform = (): Platform => {
+const createPlatform = (sidecar?: () => ServerReadyData | undefined): Platform => {
   const os = (() => {
     const ua = navigator.userAgent
     if (ua.includes("Mac")) return "macos"
@@ -227,6 +227,22 @@ const createPlatform = (): Platform => {
 
     setDefaultServer: async (url: string | null) => {
       await window.api.setDefaultServerUrl(url)
+    },
+    localServerRuntimeConfig: () => {
+      const current = sidecar?.()
+      if (!current) return undefined
+      return {
+        enabled: current.enabled,
+        username: current.username ?? "opencode",
+        password: current.password ?? "",
+        port: current.port,
+      }
+    },
+    getLocalServerConfig: async () => {
+      return window.api.getLocalServerConfig()
+    },
+    setLocalServerConfig: async (config) => {
+      await window.api.setLocalServerConfig(config)
     },
 
     wslServers: wslServersApi,

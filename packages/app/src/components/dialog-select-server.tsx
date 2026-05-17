@@ -5,6 +5,7 @@ import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { List } from "@opencode-ai/ui/list"
+import { Switch } from "@opencode-ai/ui/switch"
 import { TextField } from "@opencode-ai/ui/text-field"
 import { useMutation } from "@tanstack/solid-query"
 import { showToast } from "@/utils/toast"
@@ -14,7 +15,7 @@ import { createStore } from "solid-js/store"
 import { ServerHealthIndicator, ServerRow } from "@/components/server/server-row"
 import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
-import { usePlatform } from "@/context/platform"
+import { type LocalServerConfig, usePlatform } from "@/context/platform"
 import { normalizeServerUrl, ServerConnection, useServer } from "@/context/server"
 import { type ServerHealth, useCheckServerHealth } from "@/utils/server-health"
 import { useSettings } from "@/context/settings"
@@ -38,6 +39,25 @@ interface ServerFormProps {
   onSubmit: () => void
   onBack: () => void
 }
+
+interface InboundFormProps {
+  enabled: boolean
+  username: string
+  password: string
+  port: string
+  portError: string
+  busy: boolean
+  loading: boolean
+  onEnabledChange: (value: boolean) => void
+  onUsernameChange: (value: string) => void
+  onPasswordChange: (value: string) => void
+  onPortChange: (value: string) => void
+  onSubmit: () => void
+  onBack: () => void
+}
+
+const DEFAULT_INBOUND_USERNAME = "opencode"
+const DEFAULT_INBOUND_PORT = "4096"
 
 function showRequestError(language: ReturnType<typeof useLanguage>, err: unknown) {
   showToast({
@@ -174,6 +194,81 @@ function ServerForm(props: ServerFormProps) {
   )
 }
 
+function InboundForm(props: InboundFormProps) {
+  const language = useLanguage()
+  const keyDown = (event: KeyboardEvent) => {
+    event.stopPropagation()
+    if (event.key === "Escape") {
+      event.preventDefault()
+      props.onBack()
+      return
+    }
+    if (event.key !== "Enter" || event.isComposing) return
+    event.preventDefault()
+    props.onSubmit()
+  }
+
+  return (
+    <div class="px-5">
+      <div class="bg-surface-base rounded-md p-5 flex flex-col gap-4">
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex flex-col gap-1 min-w-0">
+            <span class="text-14-medium text-text-strong">{language.t("dialog.server.inbound.access.title")}</span>
+            <span class="text-13-regular text-text-weak">{language.t("dialog.server.inbound.access.description")}</span>
+          </div>
+          <Switch checked={props.enabled} disabled={props.busy || props.loading} onChange={props.onEnabledChange} />
+        </div>
+        <Show when={props.enabled}>
+          <div class="flex flex-col gap-3">
+            <TextField
+              autofocus
+              type="text"
+              inputMode="numeric"
+              label={language.t("dialog.server.inbound.port")}
+              placeholder={language.t("dialog.server.inbound.portPlaceholder")}
+              value={props.port}
+              validationState={props.portError ? "invalid" : "valid"}
+              error={props.portError}
+              disabled={props.busy || props.loading}
+              onChange={props.onPortChange}
+              onKeyDown={keyDown}
+              spellcheck={false}
+              autocorrect="off"
+              autocomplete="off"
+              autocapitalize="off"
+            />
+            <div class="grid grid-cols-2 gap-2 min-w-0">
+              <TextField
+                type="text"
+                label={language.t("dialog.server.inbound.username")}
+                placeholder={language.t("dialog.server.inbound.usernamePlaceholder")}
+                value={props.username}
+                disabled={props.busy || props.loading}
+                onChange={props.onUsernameChange}
+                onKeyDown={keyDown}
+                spellcheck={false}
+                autocorrect="off"
+                autocomplete="off"
+                autocapitalize="off"
+              />
+              <TextField
+                type="text"
+                label={language.t("dialog.server.inbound.password")}
+                placeholder={language.t("dialog.server.inbound.passwordPlaceholder")}
+                value={props.password}
+                disabled={props.busy || props.loading}
+                onChange={props.onPasswordChange}
+                onKeyDown={keyDown}
+                class="text-12-regular"
+              />
+            </div>
+          </div>
+        </Show>
+      </div>
+    </div>
+  )
+}
+
 export function DialogSelectServer() {
   const dialog = useDialog()
   const controller = useServerManagementController({ onSelect: dialog.close })
@@ -199,6 +294,8 @@ export function useServerManagementController(options: { onSelect?: () => void; 
   const { defaultKey, canDefault, setDefault } = useDefaultServer()
   const { previewStatus } = useServerPreview()
   const checkServerHealth = useCheckServerHealth()
+  const [localServerConfig] = createResource(() => platform.getLocalServerConfig?.())
+  const [savedLocalServerConfig, setSavedLocalServerConfig] = createSignal<LocalServerConfig>()
   const [store, setStore] = createStore({
     addServer: {
       url: "",
@@ -217,6 +314,16 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       password: "",
       error: "",
       status: undefined as boolean | undefined,
+    },
+    inboundServer: {
+      open: false,
+      enabled: false,
+      username: "",
+      password: "",
+      port: "",
+      portError: "",
+      saving: false,
+      hydrated: false,
     },
   })
 
@@ -240,6 +347,18 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       password: "",
       error: "",
       status: undefined,
+    })
+  }
+  const resetInbound = () => {
+    setStore("inboundServer", {
+      open: false,
+      enabled: false,
+      username: "",
+      password: "",
+      port: "",
+      portError: "",
+      saving: false,
+      hydrated: false,
     })
   }
 
@@ -433,7 +552,8 @@ export function useServerManagementController(options: { onSelect?: () => void; 
     )
   }
 
-  const mode = createMemo<"list" | "add" | "edit">(() => {
+  const mode = createMemo<"list" | "add" | "edit" | "inbound">(() => {
+    if (store.inboundServer.open) return "inbound"
     if (store.editServer.id) return "edit"
     if (store.addServer.showForm) return "add"
     return "list"
@@ -447,10 +567,12 @@ export function useServerManagementController(options: { onSelect?: () => void; 
   const resetForm = () => {
     resetAdd()
     resetEdit()
+    resetInbound()
   }
 
   const startAdd = () => {
     resetEdit()
+    resetInbound()
     setStore("addServer", {
       showForm: true,
       url: "",
@@ -464,6 +586,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
   const startEdit = (conn: ServerConnection.Http) => {
     resetAdd()
+    resetInbound()
     setStore("editServer", {
       id: conn.http.url,
       value: conn.http.url,
@@ -474,8 +597,109 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       status: global.servers.health[ServerConnection.key(conn)]?.healthy,
     })
   }
+  const syncInboundForm = (config: LocalServerConfig) => {
+    setStore("inboundServer", {
+      open: true,
+      enabled: config.enabled,
+      username: config.username,
+      password: config.password,
+      port: config.port === null ? DEFAULT_INBOUND_PORT : String(config.port),
+      portError: "",
+      saving: false,
+      hydrated: true,
+    })
+  }
+  const startInboundEdit = () => {
+    resetAdd()
+    resetEdit()
+    const config = savedLocalServerConfig() ?? localServerConfig.latest
+    if (config) {
+      syncInboundForm(config)
+      return
+    }
+    setStore("inboundServer", "open", true)
+  }
+  const parseInboundPort = (value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+
+    const parsed = Number.parseInt(trimmed, 10)
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) return undefined
+
+    return parsed
+  }
+  const setInboundEnabled = (value: boolean) => {
+    if (!value) {
+      setStore("inboundServer", "enabled", false)
+      return
+    }
+
+    setStore("inboundServer", {
+      enabled: true,
+      port: store.inboundServer.port.trim() || DEFAULT_INBOUND_PORT,
+      portError: "",
+      username: store.inboundServer.username,
+      password: store.inboundServer.password,
+    })
+  }
+  const saveInboundConfig = async () => {
+    if (!platform.setLocalServerConfig) return
+
+    const port = parseInboundPort(store.inboundServer.port)
+    if (store.inboundServer.enabled && port === null) {
+      setStore("inboundServer", "portError", language.t("dialog.server.inbound.portRequired"))
+      return
+    }
+    if (port === undefined) {
+      setStore("inboundServer", "portError", language.t("dialog.server.inbound.portInvalid"))
+      return
+    }
+    setStore("inboundServer", "portError", "")
+    const next = {
+      enabled: store.inboundServer.enabled,
+      username: store.inboundServer.password.trim()
+        ? (store.inboundServer.username.trim() || DEFAULT_INBOUND_USERNAME)
+        : "",
+      password: store.inboundServer.password.trim(),
+      port: port ?? null,
+    }
+    const current = savedLocalServerConfig() ?? localServerConfig.latest
+    const changed =
+      !current ||
+      current.enabled !== next.enabled ||
+      current.username !== next.username ||
+      current.password !== next.password ||
+      current.port !== next.port
+
+    if (!changed) {
+      resetInbound()
+      return
+    }
+
+    setStore("inboundServer", "saving", true)
+    try {
+      await platform.setLocalServerConfig(next)
+      setSavedLocalServerConfig(next)
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("common.save"),
+        description: language.t("dialog.server.inbound.restartRequired"),
+      })
+      resetInbound()
+    } catch (err) {
+      showRequestError(language, err)
+    } finally {
+      setStore("inboundServer", "saving", false)
+    }
+  }
 
   const submitForm = () => {
+    if (mode() === "inbound") {
+      if (store.inboundServer.saving) return
+      void saveInboundConfig()
+      return
+    }
     if (mode() === "add") {
       if (addMutation.isPending) return
       setStore("addServer", { error: "" })
@@ -491,14 +715,24 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
   const isFormMode = createMemo(() => mode() !== "list")
   const isAddMode = createMemo(() => mode() === "add")
-  const formBusy = createMemo(() => (isAddMode() ? addMutation.isPending : editMutation.isPending))
+  const isInboundMode = createMemo(() => mode() === "inbound")
+  const formBusy = createMemo(() => {
+    if (isInboundMode()) return store.inboundServer.saving
+    return isAddMode() ? addMutation.isPending : editMutation.isPending
+  })
 
   const formTitle = createMemo(() => {
     if (!isFormMode()) return language.t("dialog.server.title")
     return (
       <div class="flex items-center gap-2 -ml-2">
         <IconButton icon="arrow-left" variant="ghost" onClick={resetForm} aria-label={language.t("common.goBack")} />
-        <span>{isAddMode() ? language.t("dialog.server.add.title") : language.t("dialog.server.edit.title")}</span>
+        <span>
+          {isInboundMode()
+            ? language.t("dialog.server.inbound.title")
+            : isAddMode()
+              ? language.t("dialog.server.add.title")
+              : language.t("dialog.server.edit.title")}
+        </span>
       </div>
     )
   })
@@ -507,6 +741,12 @@ export function useServerManagementController(options: { onSelect?: () => void; 
     if (!store.editServer.id) return
     if (editing()) return
     resetEdit()
+  })
+  createEffect(() => {
+    if (!store.inboundServer.open || store.inboundServer.hydrated) return
+    const config = savedLocalServerConfig() ?? localServerConfig()
+    if (!config) return
+    syncInboundForm(config)
   })
 
   async function handleRemove(url: ServerConnection.Key) {

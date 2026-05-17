@@ -4,7 +4,6 @@ import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { ServerScope } from "@/utils/server-scope"
 
-type StoredProject = { worktree: string; expanded: boolean }
 type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
 type ServerProjectState = { projects: Record<string, StoredProject[]>; lastProject: Record<string, string> }
 const HEALTH_POLL_INTERVAL_MS = 10_000
@@ -233,8 +232,6 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       },
       createStore({
         list: [] as StoredServer[],
-        projects: {} as Record<string, StoredProject[]>,
-        lastProject: {} as Record<string, string>,
       }),
     )
 
@@ -299,6 +296,9 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       isLocal,
       get key() {
         return state.active
+      },
+      get connectionKey() {
+        return connectionKey()
       },
       get name() {
         return serverName(current())

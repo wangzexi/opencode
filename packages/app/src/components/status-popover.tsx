@@ -5,7 +5,6 @@ import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { Popover } from "@opencode-ai/ui/popover"
 import { Suspense, createMemo, createSignal, lazy, Show, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
-import { useServer } from "@/context/server"
 import { useSync } from "@/context/sync"
 import { useGlobal } from "@/context/global"
 
@@ -21,10 +20,8 @@ export function StatusPopover() {
   const ready = createMemo(() => global.servers.health[server.key]?.healthy === false || sync.data.mcp_ready)
   const mcpIssue = createMemo(() => {
     const mcp = Object.values(sync.data.mcp ?? {})
-    const failed = mcp.some((item) => item.status === "failed" || item.status === "needs_client_registration")
-    const warn = mcp.some((item) => item.status === "needs_auth")
-    if (failed) return "critical" as const
-    if (warn) return "warning" as const
+    const issue = mcp.some((item) => item.status !== "connected" && item.status !== "disabled")
+    return !issue
   })
   const serverHealthy = () => global.servers.health[server.key]?.healthy === true
   const healthy = createMemo(() => global.servers.health[server.key]?.healthy === true && !mcpIssue())
@@ -43,17 +40,18 @@ export function StatusPopover() {
       trigger={
         <div class="relative size-4">
           <div class="badge-mask-tight size-4 flex items-center justify-center">
-            <Icon name={shown() ? "status-active" : "status"} size="small" />
+            <Icon name="mcp" size="small" />
           </div>
-          <div
-            classList={{
-              "absolute -top-px -right-px size-1.5 rounded-full": true,
-              "bg-icon-success-base": ready() && healthy(),
-              "bg-icon-warning-base": ready() && serverHealthy() && mcpIssue() === "warning",
-              "bg-icon-critical-base": serverHealthy() || (ready() && serverHealthy() && mcpIssue() === "critical"),
-              "bg-border-weak-base": serverHealthy() || !ready(),
-            }}
-          />
+          <Show when={hasMcp()}>
+            <div
+              classList={{
+                "absolute -top-px -right-px size-1.5 rounded-full": true,
+                "bg-icon-success-base": ready() && healthy(),
+                "bg-icon-critical-base": ready() && !healthy(),
+                "bg-border-weak-base": !ready(),
+              }}
+            />
+          </Show>
         </div>
       }
       class="[&_[data-slot=popover-body]]:p-0 w-[360px] max-w-[calc(100vw-40px)] bg-transparent border-0 shadow-none rounded-xl"

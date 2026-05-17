@@ -38,6 +38,7 @@ import { LanguageProvider, type Locale, useLanguage } from "@/context/language"
 import { LayoutProvider } from "@/context/layout"
 import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
+import { OpenedProjectsProvider } from "@/context/opened-projects"
 import { PermissionProvider } from "@/context/permission"
 import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
@@ -297,7 +298,7 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
 function ServerKey(props: ParentProps) {
   const server = useServer()
   return (
-    <Show when={server.key} keyed>
+    <Show when={server.connectionKey} keyed>
       {props.children}
     </Show>
   )

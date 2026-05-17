@@ -7,6 +7,7 @@ import { Icon } from "@opencode-ai/ui/icon"
 import { createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { type LocalProject, getAvatarColors } from "@/context/layout"
+import { useOpenedProjects } from "@/context/opened-projects"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { Avatar } from "@opencode-ai/ui/avatar"
 import { useLanguage } from "@/context/language"
@@ -79,6 +80,16 @@ export function DialogEditProject(props: { project: LocalProject; server: Server
       const name = store.name.trim() === folderName() ? "" : store.name.trim()
       const start = store.startup.trim()
 
+      // Always write name/icon to config — this is the primary source for cross-client sync
+      openedProjects.updateMeta(props.project.worktree, {
+        name: name || undefined,
+        icon: {
+          color: store.color || undefined,
+          override: store.iconOverride || undefined,
+        },
+      })
+
+      // Also update the project database when we have an ID (needed for startup commands)
       if (props.project.id && props.project.id !== "global") {
         await serverSDK().client.project.update({
           projectID: props.project.id,

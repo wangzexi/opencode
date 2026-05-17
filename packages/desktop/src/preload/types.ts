@@ -16,8 +16,10 @@ export type {
 
 export type ServerReadyData = {
   url: string
+  enabled: boolean
   username: string | null
   password: string | null
+  port: number
 }
 
 export type WslServersAPI = WslServersPlatform

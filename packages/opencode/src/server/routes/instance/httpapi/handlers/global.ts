@@ -1,9 +1,13 @@
 import { Config } from "@/config/config"
+import type { Project as ConfigProject } from "@/config/projects"
+import { Project } from "@/project/project"
 import { GlobalBus, type GlobalEvent as GlobalBusEvent } from "@/bus/global"
 import { EffectBridge } from "@/effect/bridge"
 import { EventV2 } from "@opencode-ai/core/event"
 import { Installation } from "@/installation"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
+import { Event as ServerEvent } from "@/server/event"
+import { OpenedProjects } from "@/server/shared/opened-projects"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import * as Log from "@opencode-ai/core/util/log"
 import { Effect, Queue, Schema } from "effect"
@@ -31,6 +35,17 @@ function parseBody(body: string) {
   } catch {
     return undefined
   }
+}
+
+function emitOpenedProjectsUpdated() {
+  GlobalBus.emit("event", {
+    directory: "global",
+    payload: {
+      id: Bus.createID(),
+      type: ServerEvent.ProjectOpenedUpdated.type,
+      properties: {},
+    },
+  })
 }
 
 function eventResponse() {
@@ -69,6 +84,7 @@ function eventResponse() {
 export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handlers) =>
   Effect.gen(function* () {
     const config = yield* Config.Service
+    const projects = yield* Project.Service
     const installation = yield* Installation.Service
     const bridge = yield* EffectBridge.make()
 
@@ -85,8 +101,17 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     })
 
     const configUpdate = Effect.fn("GlobalHttpApi.configUpdate")(function* (ctx) {
+      const before = yield* config.getGlobal()
       const result = yield* config.updateGlobal(ctx.payload)
-      if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
+      if (result.changed) {
+        // Only dispose instances if fields that affect runtime changed.
+        // UI-only fields (localServer) should not trigger disposal.
+        const { localServer: _l1, ...beforeCore } = before
+        const { localServer: _l2, ...afterCore } = result.info
+        if (JSON.stringify(beforeCore) !== JSON.stringify(afterCore)) {
+          bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
+        }
+      }
       return result.info
     })
 
@@ -146,6 +171,44 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       return HttpServerResponse.jsonUnsafe(result.body, { status: result.status })
     })
 
+    const openedList = Effect.fn("GlobalHttpApi.openedList")(function* () {
+      return yield* OpenedProjects.list(projects)
+    })
+
+    const openedOpen = Effect.fn("GlobalHttpApi.openedOpen")(function* (ctx: { payload: { worktree: string } }) {
+      const next = yield* OpenedProjects.open(projects, ctx.payload.worktree)
+      yield* Effect.sync(emitOpenedProjectsUpdated)
+      return next
+    })
+
+    const openedClose = Effect.fn("GlobalHttpApi.openedClose")(function* (ctx: { payload: { worktree: string } }) {
+      const next = yield* OpenedProjects.close(projects, ctx.payload.worktree)
+      yield* Effect.sync(emitOpenedProjectsUpdated)
+      return next
+    })
+
+    const openedMeta = Effect.fn("GlobalHttpApi.openedMeta")(function* (ctx: {
+      payload: {
+        worktree: string
+        name?: string
+        icon?: { color?: string; override?: string }
+        commands?: { start?: string }
+      }
+    }) {
+      const next = yield* OpenedProjects.meta(projects, ctx.payload)
+      yield* Effect.sync(emitOpenedProjectsUpdated)
+      return next
+    })
+
+    const openedReorder = Effect.fn("GlobalHttpApi.openedReorder")(function* (ctx) {
+      const next = yield* OpenedProjects.reorder(
+        projects,
+        (ctx as { payload: { projects: ConfigProject[] } }).payload.projects,
+      )
+      yield* Effect.sync(emitOpenedProjectsUpdated)
+      return next
+    })
+
     return handlers
       .handle("health", health)
       .handleRaw("event", event)
@@ -153,5 +216,10 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       .handle("configUpdate", configUpdate)
       .handle("dispose", dispose)
       .handleRaw("upgrade", upgradeRaw)
+      .handle("openedList", openedList)
+      .handle("openedOpen", openedOpen)
+      .handle("openedClose", openedClose)
+      .handle("openedMeta", openedMeta)
+      .handle("openedReorder", openedReorder)
   }),
 )

@@ -108,8 +108,6 @@ const main = Effect.gen(function* () {
     process.chdir(homedir())
   } catch {}
 
-  process.env.OPENCODE_DISABLE_EMBEDDED_WEB_UI = "true"
-
   const appId = app.isPackaged ? APP_IDS[CHANNEL] : "ai.opencode.desktop.dev"
   const onboardingTestRoot = ((): string | undefined => {
     if (!TEST_ONBOARDING) return
@@ -284,25 +282,26 @@ const main = Effect.gen(function* () {
       if (!Number.isNaN(parsed)) return parsed
     }
 
-    const res = yield* Deferred.make<number, unknown>()
-    const server = createServer()
-    server.on("error", (e) => Deferred.failSync(res, () => e))
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address()
-      if (typeof address !== "object" || !address) {
-        server.close()
-        Deferred.failSync(res, () => new Error("Failed to get port"))
-        return
-      }
-      const port = address.port
-      server.close(() => Effect.runSync(Deferred.succeed(res, port)))
-    })
+          const res = yield* Deferred.make<number, unknown>()
+          const server = createServer()
+          server.on("error", (e) => Deferred.failSync(res, () => e))
+          server.listen(0, "127.0.0.1", () => {
+            const address = server.address()
+            if (typeof address !== "object" || !address) {
+              server.close()
+              Deferred.failSync(res, () => new Error("Failed to get port"))
+              return
+            }
+            const port = address.port
+            server.close(() => Effect.runSync(Deferred.succeed(res, port)))
+          })
 
-    return yield* Deferred.await(res)
-  })
-  const hostname = "127.0.0.1"
-  const url = `http://${hostname}:${port}`
-  const password = randomUUID()
+          return yield* Deferred.await(res)
+        })
+  const hostname = localServer.enabled ? "0.0.0.0" : "127.0.0.1"
+  const url = `http://127.0.0.1:${port}`
+  const username = localServer.enabled ? localServer.username.trim() : "opencode"
+  const password = localServer.enabled ? localServer.password.trim() : randomUUID().replaceAll("-", "").slice(0, 16)
 
   const loadingTask = yield* Effect.gen(function* () {
     logger.log("sidecar connection started", { url })
@@ -322,8 +321,10 @@ const main = Effect.gen(function* () {
     server = listener
     yield* Deferred.succeed(serverReady, {
       url,
-      username: "opencode",
+      enabled: localServer.enabled,
+      username,
       password,
+      port,
     })
 
     void wslServers.initialize().catch((error) => logger.error("wsl server initialization failed", error))

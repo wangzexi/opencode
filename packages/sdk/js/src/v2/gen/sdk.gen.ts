@@ -88,6 +88,11 @@ import type {
   GlobalEventResponses,
   GlobalHealthErrors,
   GlobalHealthResponses,
+  GlobalProjectOpenedCloseResponses,
+  GlobalProjectOpenedListResponses,
+  GlobalProjectOpenedMetaResponses,
+  GlobalProjectOpenedOpenResponses,
+  GlobalProjectOpenedReorderResponses,
   GlobalUpgradeErrors,
   GlobalUpgradeResponses,
   InstanceDisposeErrors,
@@ -2492,7 +2497,7 @@ export class Mcp extends HeyApiClient {
   }
 }
 
-export class Project extends HeyApiClient {
+export class Project2 extends HeyApiClient {
   /**
    * List all projects
    *
@@ -5862,9 +5867,9 @@ export class OpencodeClient extends HeyApiClient {
     return (this._mcp ??= new Mcp({ client: this.client }))
   }
 
-  private _project?: Project
-  get project(): Project {
-    return (this._project ??= new Project({ client: this.client }))
+  private _project?: Project2
+  get project(): Project2 {
+    return (this._project ??= new Project2({ client: this.client }))
   }
 
   private _pty?: Pty
