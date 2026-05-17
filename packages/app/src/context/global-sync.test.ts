@@ -61,6 +61,40 @@ describe("loadRootSessionsWithFallback", () => {
       { directory: "dir", roots: true },
     ])
   })
+
+  test("normalizes v2 session list responses", async () => {
+    const result = await loadRootSessionsWithFallback({
+      directory: "dir",
+      limit: 10,
+      list: async () => ({
+        data: {
+          items: [
+            {
+              id: "ses_1",
+              slug: "ses-1",
+              projectID: "proj_1",
+              directory: "/tmp/project",
+              title: "Session",
+              version: "1",
+              time: { created: 1, updated: 1 },
+            },
+          ],
+        },
+      }),
+    })
+
+    expect(result.data).toEqual([
+      {
+        id: "ses_1",
+        slug: "ses-1",
+        projectID: "proj_1",
+        directory: "/tmp/project",
+        title: "Session",
+        version: "1",
+        time: { created: 1, updated: 1 },
+      },
+    ])
+  })
 })
 
 describe("estimateRootSessionTotal", () => {

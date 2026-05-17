@@ -1,10 +1,32 @@
 import { Config } from "@/config/config"
+import { Project as ConfigProject } from "@/config/projects"
 import { BusEvent } from "@/bus/bus-event"
 import { SyncEvent } from "@/sync"
 import "@/server/event"
 import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { described } from "./metadata"
+
+const OpenedOpenPayload = Schema.Struct({ worktree: Schema.String })
+const OpenedClosePayload = Schema.Struct({ worktree: Schema.String })
+const OpenedMetaPayload = Schema.Struct({
+  worktree: Schema.String,
+  name: Schema.optional(Schema.String),
+  icon: Schema.optional(
+    Schema.Struct({
+      color: Schema.optional(Schema.String),
+      override: Schema.optional(Schema.String),
+    }),
+  ),
+  commands: Schema.optional(
+    Schema.Struct({
+      start: Schema.optional(Schema.String),
+    }),
+  ),
+})
+const OpenedReorderPayload = Schema.Struct({
+  projects: Schema.Array(ConfigProject),
+})
 
 const GlobalHealth = Schema.Struct({
   healthy: Schema.Literal(true),
@@ -100,6 +122,55 @@ export const GlobalApi = HttpApi.make("global").add(
           identifier: "global.upgrade",
           summary: "Upgrade opencode",
           description: "Upgrade opencode to the specified version or latest if not specified.",
+        }),
+      ),
+      HttpApiEndpoint.get("openedList", "/global/project/opened", {
+        success: described(Schema.Array(ConfigProject), "List of opened projects"),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.project.opened.list",
+          summary: "List opened projects",
+          description: "Get the list of opened projects with their metadata.",
+        }),
+      ),
+      HttpApiEndpoint.post("openedOpen", "/global/project/opened", {
+        payload: OpenedOpenPayload,
+        success: described(Schema.Array(ConfigProject), "Updated opened projects list"),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.project.opened.open",
+          summary: "Open a project",
+          description: "Add a project to the opened projects list.",
+        }),
+      ),
+      HttpApiEndpoint.delete("openedClose", "/global/project/opened", {
+        payload: OpenedClosePayload,
+        success: described(Schema.Array(ConfigProject), "Updated opened projects list"),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.project.opened.close",
+          summary: "Close a project",
+          description: "Remove a project from the opened projects list.",
+        }),
+      ),
+      HttpApiEndpoint.patch("openedMeta", "/global/project/opened", {
+        payload: OpenedMetaPayload,
+        success: described(Schema.Array(ConfigProject), "Updated project metadata"),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.project.opened.meta",
+          summary: "Update project metadata",
+          description: "Update name, icon, or commands for an opened project.",
+        }),
+      ),
+      HttpApiEndpoint.put("openedReorder", "/global/project/opened", {
+        payload: OpenedReorderPayload,
+        success: described(Schema.Array(ConfigProject), "Reordered opened projects list"),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.project.opened.reorder",
+          summary: "Reorder opened projects",
+          description: "Replace the entire opened projects list to reflect new ordering.",
         }),
       ),
     )

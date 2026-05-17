@@ -37,6 +37,7 @@ import { showToast, Toast, toaster } from "@opencode-ai/ui/toast"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { clearWorkspaceTerminals, getTerminalServerScope } from "@/context/terminal"
 import { dropSessionCaches, pickSessionCacheEvictions } from "@/context/global-sync/session-cache"
+import { sessionListItems } from "@/utils/session-list"
 import {
   clearSessionPrefetchInflight,
   clearSessionPrefetch,
@@ -63,6 +64,7 @@ import { ConstrainDragXAxis, getDraggableId } from "@/utils/solid-dnd"
 import { DebugBar } from "@/components/debug-bar"
 import { Titlebar } from "@/components/titlebar"
 import { useServer } from "@/context/server"
+import { useOpenedProjects } from "@/context/opened-projects"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
 import {
@@ -117,6 +119,7 @@ export default function Layout(props: ParentProps) {
   const platform = usePlatform()
   const settings = useSettings()
   const server = useServer()
+  const openedProjects = useOpenedProjects()
   const notification = useNotification()
   const permission = usePermission()
   const navigate = useNavigate()
@@ -583,7 +586,7 @@ export default function Layout(props: ParentProps) {
     if (!untrack(() => state.autoselect)) return
 
     const list = layout.projects.list()
-    const last = server.projects.last()
+    const last = openedProjects.last()
 
     if (list.length === 0) {
       if (!last) return
@@ -1294,7 +1297,7 @@ export default function Layout(props: ParentProps) {
   async function navigateToProject(directory: string | undefined) {
     if (!directory) return
     const root = projectRoot(directory)
-    server.projects.touch(root)
+    openedProjects.touch(root)
     const project = layout.projects.list().find((item) => item.worktree === root)
     let dirs = project
       ? effectiveWorkspaceOrder(root, [root, ...(project.sandboxes ?? [])], store.workspaceOrder[root])
@@ -1353,7 +1356,7 @@ export default function Layout(props: ParentProps) {
           path: { directory: item },
           session: await globalSDK.client.session
             .list({ directory: item })
-            .then((x) => x.data ?? [])
+            .then((x) => sessionListItems(x.data))
             .catch(() => []),
         })),
       ),
@@ -1573,7 +1576,7 @@ export default function Layout(props: ParentProps) {
 
     const sessions: Session[] = await globalSDK.client.session
       .list({ directory })
-      .then((x) => x.data ?? [])
+      .then((x) => sessionListItems(x.data))
       .catch(() => [])
 
     clearWorkspaceTerminals(
@@ -1708,7 +1711,7 @@ export default function Layout(props: ParentProps) {
     const refresh = async () => {
       const sessions = await globalSDK.client.session
         .list({ directory: props.directory })
-        .then((x) => x.data ?? [])
+        .then((x) => sessionListItems(x.data))
         .catch(() => [])
       const active = sessions.filter((session) => session.time.archived === undefined)
       setState({ sessions: active })
@@ -1808,7 +1811,7 @@ export default function Layout(props: ParentProps) {
           return
         }
 
-        if (server.projects.last() !== root) server.projects.touch(root)
+        if (openedProjects.last() !== root) openedProjects.touch(root)
 
         const changed = session !== activeRoute.session || dir !== activeRoute.directory
         if (changed) {
@@ -2044,24 +2047,24 @@ export default function Layout(props: ParentProps) {
     mobile?: boolean
     merged?: boolean
   }) => {
-    const project = panelProps.project
+    const selectedProject = panelProps.project
     const merged = createMemo(() => panelProps.mobile || (panelProps.merged ?? layout.sidebar.opened()))
     const hover = createMemo(() => !panelProps.mobile && panelProps.merged === false && !layout.sidebar.opened())
     const empty = createMemo(() => !params.dir && layout.projects.list().length === 0)
     const projectName = createMemo(() => {
-      const item = project()
+      const item = selectedProject()
       if (!item) return ""
       return item.name || getFilename(item.worktree)
     })
-    const projectId = createMemo(() => project()?.id ?? "")
-    const worktree = createMemo(() => project()?.worktree ?? "")
+    const projectId = createMemo(() => selectedProject()?.id ?? "")
+    const worktree = createMemo(() => selectedProject()?.worktree ?? "")
     const slug = createMemo(() => {
       const dir = worktree()
       if (!dir) return ""
       return base64Encode(dir)
     })
     const workspaces = createMemo(() => {
-      const item = project()
+      const item = selectedProject()
       if (!item) return [] as string[]
       return workspaceIds(item)
     })
@@ -2073,13 +2076,13 @@ export default function Layout(props: ParentProps) {
         .filter((directory) => notification.project.unseenCount(directory) > 0)
         .forEach((directory) => notification.project.markViewed(directory))
     const workspacesEnabled = createMemo(() => {
-      const item = project()
+      const item = selectedProject()
       if (!item) return false
       if (item.vcs !== "git") return false
       return layout.sidebar.workspaces(item.worktree)()
     })
     const canToggle = createMemo(() => {
-      const item = project()
+      const item = selectedProject()
       if (!item) return false
       return item.vcs === "git" || layout.sidebar.workspaces(item.worktree)()
     })
@@ -2101,7 +2104,8 @@ export default function Layout(props: ParentProps) {
         }}
       >
         <Show
-          when={project()}
+          when={selectedProject()}
+          keyed
           fallback={
             <Show when={empty()}>
               <div class="flex-1 min-h-0 -mt-4 flex items-center justify-center px-6 pb-64 text-center">
@@ -2119,7 +2123,6 @@ export default function Layout(props: ParentProps) {
               </div>
             </Show>
           }
-          keyed
         >
           {(project) => (
             <>
@@ -2360,6 +2363,8 @@ export default function Layout(props: ParentProps) {
       settingsLabel={() => language.t("sidebar.settings")}
       settingsKeybind={() => command.keybind("settings.open")}
       onOpenSettings={openSettings}
+      serverLabel={() => language.t("status.popover.tab.servers")}
+      onOpenServer={openServer}
       helpLabel={() => language.t("sidebar.help")}
       onOpenHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
       renderPanel={() =>

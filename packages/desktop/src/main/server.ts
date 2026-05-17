@@ -2,12 +2,13 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, utilityProcess } from "electron"
 import type { Details } from "electron"
-import { DEFAULT_SERVER_URL_KEY, WSL_ENABLED_KEY } from "./constants"
+import { DEFAULT_SERVER_URL_KEY, LOCAL_SERVER_CONFIG_KEY, WSL_ENABLED_KEY } from "./constants"
 import { getUserShell, loadShellEnv } from "./shell-env"
 import { getStore } from "./store"
 import type { SqliteMigrationProgress } from "../preload/types"
 
 export type WslConfig = { enabled: boolean }
+export type LocalServerConfig = { enabled: boolean; username: string; password: string; port: number | null }
 
 export type HealthCheck = { wait: Promise<void> }
 
@@ -22,6 +23,7 @@ export type SidecarListener = { stop: () => Promise<void> }
 const SIDECAR_SERVICE_NAME = "opencode server"
 const SIDECAR_START_STALL_TIMEOUT = 60_000
 const SIDECAR_STOP_TIMEOUT = 6_000
+const emptyLocalServerConfig = { enabled: false, username: "", password: "", port: null } satisfies LocalServerConfig
 
 type SpawnLocalServerOptions = {
   needsMigration: boolean
@@ -55,6 +57,41 @@ export function setWslConfig(config: WslConfig) {
   getStore().set(WSL_ENABLED_KEY, config.enabled)
 }
 
+function sanitizeLocalServerConfig(value: unknown): LocalServerConfig | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return
+  const record = value as Record<string, unknown>
+  return {
+    enabled: typeof record.enabled === "boolean" ? record.enabled : false,
+    username: typeof record.username === "string" ? record.username : "",
+    password: typeof record.password === "string" ? record.password : "",
+    port:
+      typeof record.port === "number" && Number.isInteger(record.port) && record.port > 0 && record.port <= 65535
+        ? record.port
+        : null,
+  }
+}
+
+function readLocalServerConfigFromStore() {
+  return sanitizeLocalServerConfig(getStore().get(LOCAL_SERVER_CONFIG_KEY))
+}
+
+function writableLocalServerConfig(config: LocalServerConfig) {
+  return {
+    enabled: config.enabled,
+    ...(config.port !== null ? { port: config.port } : {}),
+    ...(config.username ? { username: config.username } : {}),
+    ...(config.password ? { password: config.password } : {}),
+  }
+}
+
+export function getLocalServerConfig(): LocalServerConfig {
+  return readLocalServerConfigFromStore() ?? emptyLocalServerConfig
+}
+
+export function setLocalServerConfig(config: LocalServerConfig) {
+  getStore().set(LOCAL_SERVER_CONFIG_KEY, writableLocalServerConfig(config))
+}
+
 export function preferAppEnv(userDataPath: string) {
   const shell = process.platform === "win32" ? null : getUserShell()
   Object.assign(process.env, {
@@ -63,12 +100,19 @@ export function preferAppEnv(userDataPath: string) {
     OPENCODE_EXPERIMENTAL_FILEWATCHER: "true",
     OPENCODE_CLIENT: "desktop",
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
+    // Serve the bundled web UI so remote browsers see the fork's UI instead of app.opencode.ai.
+    // Production: extraResources bundles app/dist → Contents/Resources/web-dist.
+    // Dev: use the local build output directly.
+    OPENCODE_DEV_UI_DIR: app.isPackaged
+      ? join(process.resourcesPath, "web-dist")
+      : join(dirname(fileURLToPath(import.meta.url)), "../../../app/dist"),
   })
 }
 
 export async function spawnLocalServer(
   hostname: string,
   port: number,
+  username: string,
   password: string,
   options: SpawnLocalServerOptions,
 ) {
@@ -150,6 +194,7 @@ export async function spawnLocalServer(
       type: "start",
       hostname,
       port,
+      username,
       password,
       userDataPath: options.userDataPath,
       needsMigration: options.needsMigration,
@@ -160,7 +205,7 @@ export async function spawnLocalServer(
   })
 
   const wait = (async () => {
-    const url = `http://${hostname}:${port}`
+    const url = `http://${hostname === "0.0.0.0" ? "127.0.0.1" : hostname}:${port}`
     let healthy = false
     const gone = exit.promise.then((code) => {
       if (healthy) return
@@ -170,7 +215,7 @@ export async function spawnLocalServer(
     const ready = async () => {
       while (true) {
         await new Promise((resolve) => setTimeout(resolve, 100))
-        if (await checkHealth(url, password)) {
+        if (await checkHealth(url, username, password)) {
           healthy = true
           return
         }
@@ -201,7 +246,7 @@ export async function spawnLocalServer(
   }
 }
 
-export async function checkHealth(url: string, password?: string | null): Promise<boolean> {
+export async function checkHealth(url: string, username?: string | null, password?: string | null): Promise<boolean> {
   let healthUrl: URL
   try {
     healthUrl = new URL("/global/health", url)
@@ -210,8 +255,8 @@ export async function checkHealth(url: string, password?: string | null): Promis
   }
 
   const headers = new Headers()
-  if (password) {
-    const auth = Buffer.from(`opencode:${password}`).toString("base64")
+  if (username && password) {
+    const auth = Buffer.from(`${username}:${password}`).toString("base64")
     headers.set("authorization", `Basic ${auth}`)
   }
 

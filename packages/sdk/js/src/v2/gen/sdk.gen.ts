@@ -56,6 +56,11 @@ import type {
   GlobalDisposeResponses,
   GlobalEventResponses,
   GlobalHealthResponses,
+  GlobalProjectOpenedCloseResponses,
+  GlobalProjectOpenedListResponses,
+  GlobalProjectOpenedMetaResponses,
+  GlobalProjectOpenedOpenResponses,
+  GlobalProjectOpenedReorderResponses,
   GlobalUpgradeErrors,
   GlobalUpgradeResponses,
   InstanceDisposeResponses,
@@ -88,6 +93,7 @@ import type {
   PermissionRespondErrors,
   PermissionRespondResponses,
   PermissionRuleset,
+  ProjectConfig,
   ProjectCurrentResponses,
   ProjectInitGitResponses,
   ProjectListResponses,
@@ -472,6 +478,144 @@ export class Config extends HeyApiClient {
   }
 }
 
+export class Opened extends HeyApiClient {
+  /**
+   * Close a project
+   *
+   * Remove a project from the opened projects list.
+   */
+  public close<ThrowOnError extends boolean = false>(
+    parameters?: {
+      worktree?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "worktree" }] }])
+    return (options?.client ?? this.client).delete<GlobalProjectOpenedCloseResponses, unknown, ThrowOnError>({
+      url: "/global/project/opened",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List opened projects
+   *
+   * Get the list of opened projects with their metadata.
+   */
+  public list<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<GlobalProjectOpenedListResponses, unknown, ThrowOnError>({
+      url: "/global/project/opened",
+      ...options,
+    })
+  }
+
+  /**
+   * Update project metadata
+   *
+   * Update name, icon, or commands for an opened project.
+   */
+  public meta<ThrowOnError extends boolean = false>(
+    parameters?: {
+      worktree?: string
+      name?: string
+      icon?: {
+        color?: string
+        override?: string
+        emoji?: string
+      }
+      commands?: {
+        start?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "worktree" },
+            { in: "body", key: "name" },
+            { in: "body", key: "icon" },
+            { in: "body", key: "commands" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<GlobalProjectOpenedMetaResponses, unknown, ThrowOnError>({
+      url: "/global/project/opened",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Open a project
+   *
+   * Add a project to the opened projects list.
+   */
+  public open<ThrowOnError extends boolean = false>(
+    parameters?: {
+      worktree?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "worktree" }] }])
+    return (options?.client ?? this.client).post<GlobalProjectOpenedOpenResponses, unknown, ThrowOnError>({
+      url: "/global/project/opened",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Reorder opened projects
+   *
+   * Replace the entire opened projects list to reflect new ordering.
+   */
+  public reorder<ThrowOnError extends boolean = false>(
+    parameters?: {
+      projects?: Array<ProjectConfig>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "projects" }] }])
+    return (options?.client ?? this.client).put<GlobalProjectOpenedReorderResponses, unknown, ThrowOnError>({
+      url: "/global/project/opened",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Project extends HeyApiClient {
+  private _opened?: Opened
+  get opened(): Opened {
+    return (this._opened ??= new Opened({ client: this.client }))
+  }
+}
+
 export class Global extends HeyApiClient {
   /**
    * Get health
@@ -536,6 +680,11 @@ export class Global extends HeyApiClient {
   private _config?: Config
   get config(): Config {
     return (this._config ??= new Config({ client: this.client }))
+  }
+
+  private _project?: Project
+  get project(): Project {
+    return (this._project ??= new Project({ client: this.client }))
   }
 }
 
@@ -2146,7 +2295,7 @@ export class Mcp extends HeyApiClient {
   }
 }
 
-export class Project extends HeyApiClient {
+export class Project2 extends HeyApiClient {
   /**
    * List all projects
    *
@@ -5017,9 +5166,9 @@ export class OpencodeClient extends HeyApiClient {
     return (this._mcp ??= new Mcp({ client: this.client }))
   }
 
-  private _project?: Project
-  get project(): Project {
-    return (this._project ??= new Project({ client: this.client }))
+  private _project?: Project2
+  get project(): Project2 {
+    return (this._project ??= new Project2({ client: this.client }))
   }
 
   private _pty?: Pty

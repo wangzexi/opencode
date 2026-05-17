@@ -32,6 +32,7 @@ import { trimSessions } from "./global-sync/session-trim"
 import type { ProjectMeta } from "./global-sync/types"
 import { SESSION_RECENT_LIMIT } from "./global-sync/types"
 import { formatServerError } from "@/utils/server-errors"
+import { sessionListItems } from "@/utils/session-list"
 import { queryOptions, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { createRefreshQueue } from "./global-sync/queue"
 import { directoryKey } from "./global-sync/utils"
@@ -257,7 +258,7 @@ function createGlobalSync() {
             list: (query) => globalSDK.client.session.list(query),
           })
             .then((x) => {
-              const nonArchived = (x.data ?? [])
+              const nonArchived = sessionListItems(x.data)
                 .filter((s) => !!s?.id)
                 .filter((s) => !s.time?.archived)
                 .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))

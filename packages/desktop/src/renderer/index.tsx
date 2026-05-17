@@ -22,6 +22,7 @@ import { render } from "solid-js/web"
 import pkg from "../../package.json"
 import { initI18n, t } from "./i18n"
 import { webviewZoom } from "./webview-zoom"
+import type { ServerReadyData } from "../preload/types"
 import "./styles.css"
 import { useTheme } from "@opencode-ai/ui/theme"
 
@@ -70,7 +71,7 @@ const listenForDeepLinks = () => {
   return window.api.onDeepLink((urls) => emitDeepLinks(urls))
 }
 
-const createPlatform = (): Platform => {
+const createPlatform = (sidecar?: () => ServerReadyData | undefined): Platform => {
   const os = (() => {
     const ua = navigator.userAgent
     if (ua.includes("Mac")) return "macos"
@@ -241,6 +242,22 @@ const createPlatform = (): Platform => {
     setDefaultServer: async (url: string | null) => {
       await window.api.setDefaultServerUrl(url)
     },
+    localServerRuntimeConfig: () => {
+      const current = sidecar?.()
+      if (!current) return undefined
+      return {
+        enabled: current.enabled,
+        username: current.username ?? "opencode",
+        password: current.password ?? "",
+        port: current.port,
+      }
+    },
+    getLocalServerConfig: async () => {
+      return window.api.getLocalServerConfig()
+    },
+    setLocalServerConfig: async (config) => {
+      await window.api.setLocalServerConfig(config)
+    },
 
     getDisplayBackend: async () => {
       return window.api.getDisplayBackend().catch(() => null)
@@ -276,7 +293,6 @@ window.api.onMenuCommand((id) => {
 listenForDeepLinks()
 
 render(() => {
-  const platform = createPlatform()
   const [windowConfig] = createResource(() => window.api.getWindowConfig().catch(() => ({ updaterEnabled: false })))
   const loadLocale = async () => {
     const current = await platform.storage?.("opencode.global.dat").getItem("language")
@@ -294,6 +310,7 @@ render(() => {
 
   // Fetch sidecar credentials (available immediately, before health check)
   const [sidecar] = createResource(() => window.api.awaitInitialization(() => undefined))
+  const platform = createPlatform(() => sidecar())
 
   const [defaultServer] = createResource(() =>
     platform.getDefaultServer?.().then((url) => {
