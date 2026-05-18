@@ -76,7 +76,7 @@ export function SessionScheduleButton() {
           <div class="relative flex items-center justify-center">
             <Icon name="clock" size="small" />
             <Show when={count() > 1}>
-              <span class="absolute -top-1 -right-2 min-w-3.5 h-3.5 px-1 rounded-full bg-icon-info-base text-text-invert-strong text-10-strong leading-none flex items-center justify-center">
+              <span class="absolute -top-1 -right-2 min-w-3.5 h-3.5 px-1 rounded-full bg-icon-info-base text-text-invert-strong text-12-medium leading-none flex items-center justify-center">
                 {count()}
               </span>
             </Show>
@@ -89,8 +89,8 @@ export function SessionScheduleButton() {
         <Show when={shown()}>
           <div class="flex flex-col">
             <div class="px-4 py-3 border-b border-border-weak-base">
-              <div class="text-13-strong text-text-strong">{language.t("schedule.popover.title")}</div>
-              <div class="text-11-regular text-text-weak mt-0.5">
+              <div class="text-14-medium text-text-strong">{language.t("schedule.popover.title")}</div>
+              <div class="text-12-regular text-text-weak mt-0.5">
                 {language.t("schedule.popover.subtitle", { count: count() })}
               </div>
             </div>
@@ -118,7 +118,7 @@ function ScheduleRow(props: { item: ScheduleInfo; onDelete: () => void; deleting
   const nextRun = createMemo(() => formatRelativeTime(language, props.item.nextRun))
 
   const tooltipContent = () => (
-    <div class="flex flex-col gap-1 text-11-regular">
+    <div class="flex flex-col gap-1 text-12-regular">
       <div class="flex items-center gap-2">
         <span class="text-text-invert-base">{language.t("schedule.tooltip.last")}</span>
         <Show
@@ -146,7 +146,7 @@ function ScheduleRow(props: { item: ScheduleInfo; onDelete: () => void; deleting
   return (
     <div class="group flex items-start gap-2 px-4 py-3 border-b border-border-weak-base last:border-b-0 hover:bg-background-base">
       <div class="flex-1 min-w-0">
-        <div class="font-mono text-11-regular text-text-weak mb-0.5">{props.item.expression}</div>
+        <div class="font-mono text-12-regular text-text-weak mb-0.5">{props.item.expression}</div>
         <div class="text-12-regular text-text-base truncate" title={props.item.message}>
           {props.item.message}
         </div>
