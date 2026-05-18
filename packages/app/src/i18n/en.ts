@@ -417,9 +417,9 @@ export const dict = {
   "context.usage.clickToView": "Click to view context",
   "context.usage.view": "View context usage",
 
-  "schedule.button.label": "Scheduled tasks ({count})",
+  "schedule.button.label": "Scheduled tasks ({{count}})",
   "schedule.popover.title": "Scheduled tasks",
-  "schedule.popover.subtitle": "{count} active",
+  "schedule.popover.subtitle": "{{count}} active",
   "schedule.row.info": "Details",
   "schedule.row.delete": "Delete schedule",
   "schedule.tooltip.last": "Last:",

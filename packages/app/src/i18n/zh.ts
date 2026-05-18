@@ -413,9 +413,9 @@ export const dict = {
   "context.usage.clickToView": "点击查看上下文",
   "context.usage.view": "查看上下文用量",
 
-  "schedule.button.label": "定时任务（{count}）",
+  "schedule.button.label": "定时任务（{{count}}）",
   "schedule.popover.title": "定时任务",
-  "schedule.popover.subtitle": "{count} 个活跃",
+  "schedule.popover.subtitle": "{{count}} 个活跃",
   "schedule.row.info": "详情",
   "schedule.row.delete": "删除定时任务",
   "schedule.tooltip.last": "上次：",

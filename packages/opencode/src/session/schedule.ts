@@ -1,5 +1,6 @@
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
+import { EffectBridge } from "@/effect/bridge"
 import { Identifier } from "@/id/id"
 import { Database } from "@/storage/db"
 import * as Log from "@opencode-ai/core/util/log"
@@ -129,7 +130,10 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const bus = yield* Bus.Service
 
-    const timers = new Map<ID, { cron: Cron; sessionID: SessionID }>()
+    const timers = new Map<
+      ID,
+      { cron: Cron; sessionID: SessionID; bridge: EffectBridge.Shape }
+    >()
 
     const recordRun: Interface["recordRun"] = Effect.fn("Schedule.recordRun")(
       function* (scheduleID, sessionID, runStatus, ranAt) {
@@ -161,43 +165,31 @@ export const layer = Layer.effect(
       })
     })
 
-    const startTimer = (scheduleID: ID, sessionID: SessionID, expression: string) => {
+    const startTimer = (
+      scheduleID: ID,
+      sessionID: SessionID,
+      expression: string,
+      bridge: EffectBridge.Shape,
+    ) => {
       const cron = new Cron(expression, {}, () => {
-        Effect.runPromise(tick(scheduleID)).catch((e) =>
+        // Run tick inside the captured instance/workspace context so that
+        // services hung off InstanceState (e.g. Bus.publish) resolve cleanly.
+        bridge.promise(tick(scheduleID)).catch((e) =>
           log.error("schedule timer error", {
             scheduleID,
             error: e instanceof Error ? e.message : String(e),
           }),
         )
       })
-      timers.set(scheduleID, { cron, sessionID })
+      timers.set(scheduleID, { cron, sessionID, bridge })
     }
 
-    // Hydrate on startup, deferred via setTimeout so that the layer itself
-    // can finish constructing without touching the database (the database
-    // and its surrounding context are not always ready at layer-init time,
-    // e.g. in tool-registry unit tests). Errors are swallowed; failed
-    // hydration just means the existing rows won't get timers until the
-    // next create()/list() touches the data manually.
-    setTimeout(() => {
-      try {
-        const rows = Database.use((db) => db.select().from(ScheduleTable).all())
-        for (const row of rows) {
-          try {
-            startTimer(row.id as ID, row.session_id as SessionID, row.expression)
-          } catch (e) {
-            log.error("failed to hydrate schedule", {
-              scheduleID: row.id,
-              error: e instanceof Error ? e.message : String(e),
-            })
-          }
-        }
-      } catch (e) {
-        log.debug?.("schedule hydrate skipped", {
-          error: e instanceof Error ? e.message : String(e),
-        })
-      }
-    }, 0)
+    // NOTE: Cron timers need an EffectBridge captured inside an active
+    // InstanceContext (so that bus.publish / SessionPrompt run in the right
+    // instance scope). We only have that during create(); hydrate-on-restart
+    // is a TODO that needs per-project instance lookup. Until then,
+    // schedules don't survive a sidecar restart — the rows persist in the
+    // DB but no timers are reattached.
 
     const list: Interface["list"] = Effect.fn("Schedule.list")(function* (sessionID: SessionID) {
       const rows = yield* Effect.sync(() =>
@@ -268,7 +260,8 @@ export const layer = Layer.effect(
             .run()
         }),
       )
-      startTimer(id, input.sessionID, input.expression)
+      const bridge = yield* EffectBridge.make()
+      startTimer(id, input.sessionID, input.expression, bridge)
       yield* bus.publish(Event.Created, { scheduleID: id, sessionID: input.sessionID })
       return {
         id,
