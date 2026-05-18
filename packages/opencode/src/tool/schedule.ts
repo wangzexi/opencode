@@ -21,29 +21,22 @@ Examples:
 
 Minimum interval is 60 seconds. Maximum 10 schedules per session.`
 
-const CreateAction = Schema.Struct({
-  action: Schema.Literal("create").annotate({ description: "Create a new scheduled task." }),
-  expression: Schema.String.annotate({
-    description: "Standard 5-field cron expression. Example: '*/10 * * * *'. Minimum interval 60s.",
+export const Parameters = Schema.Struct({
+  action: Schema.Literals(["create", "delete", "list"]).annotate({
+    description:
+      "Which operation to perform. 'create' requires expression+message; 'delete' requires id; 'list' takes no extra fields.",
   }),
-  message: Schema.String.annotate({
-    description: "Message content to inject into the session when the cron fires.",
+  expression: Schema.optional(Schema.String).annotate({
+    description:
+      "Required for action='create'. Standard 5-field cron expression. Example: '*/10 * * * *'. Minimum interval 60s.",
   }),
-})
-
-const DeleteAction = Schema.Struct({
-  action: Schema.Literal("delete").annotate({ description: "Delete an existing scheduled task by id." }),
-  id: Schema.String.annotate({ description: "Schedule id from create or list." }),
-})
-
-const ListAction = Schema.Struct({
-  action: Schema.Literal("list").annotate({
-    description: "List all scheduled tasks for this session.",
+  message: Schema.optional(Schema.String).annotate({
+    description:
+      "Required for action='create'. Message content to inject into the session when the cron fires.",
   }),
-})
-
-export const Parameters = Schema.Union([CreateAction, DeleteAction, ListAction]).annotate({
-  discriminator: "action",
+  id: Schema.optional(Schema.String).annotate({
+    description: "Required for action='delete'. Schedule id from create or list.",
+  }),
 })
 
 type Metadata = {
@@ -63,8 +56,17 @@ export const ScheduleTool = Tool.define<typeof Parameters, Metadata, Schedule.Se
         Effect.gen(function* () {
           switch (params.action) {
             case "create": {
+              if (!params.expression || !params.message) {
+                return {
+                  title: "Missing fields",
+                  output:
+                    "action='create' requires both 'expression' (5-field cron) and 'message'. Re-call with both fields.",
+                  metadata: { action: "create" } satisfies Metadata,
+                }
+              }
               const expression = params.expression.trim()
-              return yield* schedule.create({ sessionID: ctx.sessionID, expression, message: params.message }).pipe(
+              const message = params.message
+              return yield* schedule.create({ sessionID: ctx.sessionID, expression, message }).pipe(
                 Effect.map((info) => ({
                   title: `Scheduled: ${expression}`,
                   output: JSON.stringify(
@@ -77,7 +79,7 @@ export const ScheduleTool = Tool.define<typeof Parameters, Metadata, Schedule.Se
                     null,
                     2,
                   ),
-                  metadata: { action: "create", scheduleID: info.id } satisfies Metadata,
+                  metadata: { action: "create" as const, scheduleID: info.id } satisfies Metadata,
                 })),
                 Effect.catchTag("ScheduleInvalidExpression", (e) =>
                   Effect.succeed({
@@ -103,17 +105,25 @@ export const ScheduleTool = Tool.define<typeof Parameters, Metadata, Schedule.Se
               )
             }
             case "delete": {
-              return yield* schedule.delete(params.id as Schedule.ID).pipe(
+              const id = params.id
+              if (!id) {
+                return {
+                  title: "Missing id",
+                  output: "action='delete' requires 'id'. Use schedule({action:'list'}) to find current ids.",
+                  metadata: { action: "delete" as const } satisfies Metadata,
+                }
+              }
+              return yield* schedule.delete(id as Schedule.ID).pipe(
                 Effect.map(() => ({
                   title: "Schedule deleted",
-                  output: `Deleted schedule ${params.id}.`,
-                  metadata: { action: "delete", scheduleID: params.id } satisfies Metadata,
+                  output: `Deleted schedule ${id}.`,
+                  metadata: { action: "delete" as const, scheduleID: id } satisfies Metadata,
                 })),
                 Effect.catchTag("ScheduleNotFound", (e) =>
                   Effect.succeed({
                     title: "Schedule not found",
                     output: `No schedule with id "${e.scheduleID}". Use schedule({action:"list"}) to see current ids.`,
-                    metadata: { action: "delete" } satisfies Metadata,
+                    metadata: { action: "delete" as const } satisfies Metadata,
                   }),
                 ),
               )
