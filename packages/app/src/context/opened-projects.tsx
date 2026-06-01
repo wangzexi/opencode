@@ -4,9 +4,9 @@ import { createMemo, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { createSdkForServer } from "@/utils/server"
-import { useGlobalSDK } from "./global-sdk"
 import { usePlatform } from "./platform"
 import { useServer } from "./server"
+import { useServerSDK } from "./server-sdk"
 
 export type ConfigProjectEntry = {
   worktree: string
@@ -83,7 +83,7 @@ export const { use: useOpenedProjects, provider: OpenedProjectsProvider } = crea
   init: () => {
     const server = useServer()
     const platform = usePlatform()
-    const globalSDK = useGlobalSDK()
+    const serverSDK = useServerSDK()
     const queryClient = useQueryClient()
 
     const [store, setStore, , ready] = persisted(
@@ -103,11 +103,11 @@ export const { use: useOpenedProjects, provider: OpenedProjectsProvider } = crea
       })
     }
 
-    const queryKey = createMemo(() => ["opened-projects", server.connectionKey] as const)
+    const queryKey = createMemo(() => ["opened-projects", server.key] as const)
 
     const query = createQuery(() => ({
       queryKey: queryKey(),
-      enabled: ready() && !!server.key && !!server.current && server.healthy() === true,
+      enabled: ready() && !!server.key && !!server.current,
       refetchOnWindowFocus: false,
       structuralSharing: (previous: unknown, next: unknown) => {
         const nextEntries = asEntries(next)
@@ -145,7 +145,7 @@ export const { use: useOpenedProjects, provider: OpenedProjectsProvider } = crea
       return server.key
     }
 
-    const unsub = globalSDK.event.on("global", (event) => {
+    const unsub = serverSDK.event.on("global", (event) => {
       if (event.type !== "project.opened.updated") return
       void query.refetch()
     })

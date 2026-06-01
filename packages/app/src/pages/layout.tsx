@@ -50,6 +50,7 @@ import {
   shouldSkipSessionPrefetch,
 } from "@/context/global-sync/session-prefetch"
 import { useNotification } from "@/context/notification"
+import { useOpenedProjects } from "@/context/opened-projects"
 import { usePermission } from "@/context/permission"
 import { Binary } from "@opencode-ai/core/util/binary"
 import { retry } from "@opencode-ai/core/util/retry"

@@ -84,6 +84,10 @@ export type Event =
   | EventSessionStatus
   | EventSessionIdle
   | EventSessionCompacted
+  | EventScheduleCreated
+  | EventScheduleDeleted
+  | EventScheduleRan
+  | EventScheduleTriggered
   | EventVcsBranchUpdated
   | EventWorktreeReady
   | EventWorktreeFailed
@@ -92,6 +96,7 @@ export type Event =
   | EventWorkspaceStatus
   | EventServerConnected
   | EventGlobalDisposed
+  | EventProjectOpenedUpdated
   | EventServerInstanceDisposed
 
 export type QuestionReplied = {
@@ -1569,6 +1574,41 @@ export type GlobalEvent = {
       }
     | {
         id: string
+        type: "schedule.created"
+        properties: {
+          scheduleID: string
+          sessionID: string
+        }
+      }
+    | {
+        id: string
+        type: "schedule.deleted"
+        properties: {
+          scheduleID: string
+          sessionID: string
+        }
+      }
+    | {
+        id: string
+        type: "schedule.ran"
+        properties: {
+          scheduleID: string
+          sessionID: string
+          status: "ran" | "skipped"
+          ranAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        }
+      }
+    | {
+        id: string
+        type: "schedule.triggered"
+        properties: {
+          scheduleID: string
+          sessionID: string
+          message: string
+        }
+      }
+    | {
+        id: string
         type: "vcs.branch.updated"
         properties: {
           branch?: string
@@ -1625,6 +1665,13 @@ export type GlobalEvent = {
           [key: string]: unknown
         }
       }
+    | {
+        id: string
+        type: "project.opened.updated"
+        properties: {
+          [key: string]: unknown
+        }
+      }
     | EventServerInstanceDisposed
     | SyncEventSessionCreated
     | SyncEventSessionUpdated
@@ -1676,13 +1723,6 @@ export type ServerConfig = {
   mdns?: boolean
   mdnsDomain?: string
   cors?: Array<string>
-}
-
-export type LocalServerConfig = {
-  enabled?: boolean
-  port?: number
-  username?: string
-  password?: string
 }
 
 export type ReferenceConfigEntry =
@@ -1934,7 +1974,6 @@ export type Config = {
   shell?: string
   logLevel?: LogLevel
   server?: ServerConfig
-  localServer?: LocalServerConfig
   command?: {
     [key: string]: {
       template: string
@@ -2608,6 +2647,13 @@ export type ProviderAuthError1 = {
     field?: string
     message?: string
     kind?: string
+  }
+}
+
+export type NotFoundError = {
+  name: "NotFoundError"
+  data: {
+    message: string
   }
 }
 
@@ -3767,419 +3813,10 @@ export type SyncEventSessionNextCompactionEnded = {
 
 export type PolicyEffect = "allow" | "deny"
 
-export type EventSessionUpdated = {
-  id: string
-  type: "session.updated"
-  properties: {
-    sessionID: string
-    info: Session
-  }
-}
-
-export type EventSessionDeleted = {
-  id: string
-  type: "session.deleted"
-  properties: {
-    sessionID: string
-    info: Session
-  }
-}
-
-export type EventSessionNextAgentSwitched = {
-  id: string
-  type: "session.next.agent.switched"
-  properties: {
-    timestamp: number
-    sessionID: string
-    agent: string
-  }
-}
-
-export type EventSessionNextModelSwitched = {
-  id: string
-  type: "session.next.model.switched"
-  properties: {
-    timestamp: number
-    sessionID: string
-    model: {
-      id: string
-      providerID: string
-      variant: string
-    }
-  }
-}
-
-export type PromptSource = {
-  start: number
-  end: number
-  text: string
-}
-
-export type PromptFileAttachment = {
-  uri: string
-  mime: string
-  name?: string
-  description?: string
-  source?: PromptSource
-}
-
-export type PromptAgentAttachment = {
-  name: string
-  source?: PromptSource
-}
-
-export type PromptReferenceAttachment = {
-  name: string
-  kind: "local" | "git" | "invalid"
-  uri?: string
-  repository?: string
-  branch?: string
-  target?: string
-  targetUri?: string
-  problem?: string
-  source?: PromptSource
-}
-
-export type EventSessionNextPrompted = {
-  id: string
-  type: "session.next.prompted"
-  properties: {
-    timestamp: number
-    sessionID: string
-    prompt: Prompt
-  }
-}
-
-export type EventSessionNextSynthetic = {
-  id: string
-  type: "session.next.synthetic"
-  properties: {
-    timestamp: number
-    sessionID: string
-    text: string
-  }
-}
-
-export type EventSessionNextShellStarted = {
-  id: string
-  type: "session.next.shell.started"
-  properties: {
-    timestamp: number
-    sessionID: string
-    callID: string
-    command: string
-  }
-}
-
-export type EventSessionNextShellEnded = {
-  id: string
-  type: "session.next.shell.ended"
-  properties: {
-    timestamp: number
-    sessionID: string
-    callID: string
-    output: string
-  }
-}
-
-export type EventSessionNextStepStarted = {
-  id: string
-  type: "session.next.step.started"
-  properties: {
-    timestamp: number
-    sessionID: string
-    agent: string
-    model: {
-      id: string
-      providerID: string
-      variant: string
-    }
-    snapshot?: string
-  }
-}
-
-export type EventSessionNextStepEnded = {
-  id: string
-  type: "session.next.step.ended"
-  properties: {
-    timestamp: number
-    sessionID: string
-    finish: string
-    cost: number
-    tokens: {
-      input: number
-      output: number
-      reasoning: number
-      cache: {
-        read: number
-        write: number
-      }
-    }
-    snapshot?: string
-  }
-}
-
-export type SessionErrorUnknown = {
-  type: "unknown"
-  message: string
-}
-
-export type EventSessionNextStepFailed = {
-  id: string
-  type: "session.next.step.failed"
-  properties: {
-    timestamp: number
-    sessionID: string
-    error: SessionErrorUnknown
-  }
-}
-
-export type EventSessionNextTextStarted = {
-  id: string
-  type: "session.next.text.started"
-  properties: {
-    timestamp: number
-    sessionID: string
-  }
-}
-
-export type EventSessionNextTextDelta = {
-  id: string
-  type: "session.next.text.delta"
-  properties: {
-    timestamp: number
-    sessionID: string
-    delta: string
-  }
-}
-
-export type EventSessionNextTextEnded = {
-  id: string
-  type: "session.next.text.ended"
-  properties: {
-    timestamp: number
-    sessionID: string
-    text: string
-  }
-}
-
-export type EventSessionNextReasoningStarted = {
-  id: string
-  type: "session.next.reasoning.started"
-  properties: {
-    timestamp: number
-    sessionID: string
-    reasoningID: string
-  }
-}
-
-export type EventSessionNextReasoningDelta = {
-  id: string
-  type: "session.next.reasoning.delta"
-  properties: {
-    timestamp: number
-    sessionID: string
-    reasoningID: string
-    delta: string
-  }
-}
-
-export type EventSessionNextReasoningEnded = {
-  id: string
-  type: "session.next.reasoning.ended"
-  properties: {
-    timestamp: number
-    sessionID: string
-    reasoningID: string
-    text: string
-  }
-}
-
-export type EventSessionNextToolInputStarted = {
-  id: string
-  type: "session.next.tool.input.started"
-  properties: {
-    timestamp: number
-    sessionID: string
-    callID: string
-    name: string
-  }
-}
-
-export type EventSessionNextToolInputDelta = {
-  id: string
-  type: "session.next.tool.input.delta"
-  properties: {
-    timestamp: number
-    sessionID: string
-    callID: string
-    delta: string
-  }
-}
-
-export type EventSessionNextToolInputEnded = {
-  id: string
-  type: "session.next.tool.input.ended"
-  properties: {
-    timestamp: number
-    sessionID: string
-    callID: string
-    text: string
-  }
-}
-
-export type EventSessionNextToolCalled = {
-  id: string
-  type: "session.next.tool.called"
-  properties: {
-    timestamp: number
-    sessionID: string
-    callID: string
-    tool: string
-    input: {
-      [key: string]: unknown
-    }
-    provider: {
-      executed: boolean
-      metadata?: {
-        [key: string]: unknown
-      }
-    }
-  }
-}
-
-export type ToolTextContent = {
-  type: "text"
-  text: string
-}
-
-export type ToolFileContent = {
-  type: "file"
-  uri: string
-  mime: string
-  name?: string
-}
-
-export type EventSessionNextToolProgress = {
-  id: string
-  type: "session.next.tool.progress"
-  properties: {
-    timestamp: number
-    sessionID: string
-    callID: string
-    structured: {
-      [key: string]: unknown
-    }
-    content: Array<ToolTextContent | ToolFileContent>
-  }
-}
-
-export type EventSessionNextToolSuccess = {
-  id: string
-  type: "session.next.tool.success"
-  properties: {
-    timestamp: number
-    sessionID: string
-    callID: string
-    structured: {
-      [key: string]: unknown
-    }
-    content: Array<ToolTextContent | ToolFileContent>
-    provider: {
-      executed: boolean
-      metadata?: {
-        [key: string]: unknown
-      }
-    }
-  }
-}
-
-export type EventSessionNextToolFailed = {
-  id: string
-  type: "session.next.tool.failed"
-  properties: {
-    timestamp: number
-    sessionID: string
-    callID: string
-    error: SessionErrorUnknown
-    provider: {
-      executed: boolean
-      metadata?: {
-        [key: string]: unknown
-      }
-    }
-  }
-}
-
-export type SessionNextRetryError = {
-  message: string
-  statusCode?: number
-  isRetryable: boolean
-  responseHeaders?: {
-    [key: string]: string
-  }
-  responseBody?: string
-  metadata?: {
-    [key: string]: string
-  }
-}
-
-export type EventSessionNextRetried = {
-  id: string
-  type: "session.next.retried"
-  properties: {
-    timestamp: number
-    sessionID: string
-    attempt: number
-    error: SessionNextRetryError
-  }
-}
-
-export type EventSessionNextCompactionStarted = {
-  id: string
-  type: "session.next.compaction.started"
-  properties: {
-    timestamp: number
-    sessionID: string
-    reason: "auto" | "manual"
-  }
-}
-
-export type EventSessionNextCompactionDelta = {
-  id: string
-  type: "session.next.compaction.delta"
-  properties: {
-    timestamp: number
-    sessionID: string
-    text: string
-  }
-}
-
-export type EventSessionNextCompactionEnded = {
-  id: string
-  type: "session.next.compaction.ended"
-  properties: {
-    timestamp: number
-    sessionID: string
-    text: string
-    include?: string
-  }
-}
-
-export type EventServerConnected = {
-  id: string
-  type: "server.connected"
-  properties: {
-    [key: string]: unknown
-  }
-}
-
-export type EventGlobalDisposed = {
-  id: string
-  type: "global.disposed"
-  properties: {
-    [key: string]: unknown
-  }
+export type ConfigV2ExperimentalPolicy = {
+  action: "provider.use"
+  effect: PolicyEffect
+  resource: string
 }
 
 export type ProjectDirectories = Array<string>
@@ -4639,17 +4276,6 @@ export type EventPluginAdded = {
   type: "plugin.added"
   properties: {
     id: string
-  }
-}
-
-export type EventScheduleRan1 = {
-  id: string
-  type: "schedule.ran"
-  properties: {
-    scheduleID: string
-    sessionID: string
-    status: "ran" | "skipped"
-    ranAt: number | "NaN" | "Infinity" | "-Infinity"
   }
 }
 
@@ -5601,6 +5227,45 @@ export type EventSessionCompacted = {
   }
 }
 
+export type EventScheduleCreated = {
+  id: string
+  type: "schedule.created"
+  properties: {
+    scheduleID: string
+    sessionID: string
+  }
+}
+
+export type EventScheduleDeleted = {
+  id: string
+  type: "schedule.deleted"
+  properties: {
+    scheduleID: string
+    sessionID: string
+  }
+}
+
+export type EventScheduleRan = {
+  id: string
+  type: "schedule.ran"
+  properties: {
+    scheduleID: string
+    sessionID: string
+    status: "ran" | "skipped"
+    ranAt: number | "NaN" | "Infinity" | "-Infinity"
+  }
+}
+
+export type EventScheduleTriggered = {
+  id: string
+  type: "schedule.triggered"
+  properties: {
+    scheduleID: string
+    sessionID: string
+    message: string
+  }
+}
+
 export type EventVcsBranchUpdated = {
   id: string
   type: "vcs.branch.updated"
@@ -5662,6 +5327,14 @@ export type EventServerConnected = {
 export type EventGlobalDisposed = {
   id: string
   type: "global.disposed"
+  properties: {
+    [key: string]: unknown
+  }
+}
+
+export type EventProjectOpenedUpdated = {
+  id: string
+  type: "project.opened.updated"
   properties: {
     [key: string]: unknown
   }
@@ -5976,6 +5649,15 @@ export type GlobalProjectOpenedCloseData = {
   url: "/global/project/opened"
 }
 
+export type GlobalProjectOpenedCloseErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type GlobalProjectOpenedCloseError = GlobalProjectOpenedCloseErrors[keyof GlobalProjectOpenedCloseErrors]
+
 export type GlobalProjectOpenedCloseResponses = {
   /**
    * Updated opened projects list
@@ -5992,6 +5674,15 @@ export type GlobalProjectOpenedListData = {
   query?: never
   url: "/global/project/opened"
 }
+
+export type GlobalProjectOpenedListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type GlobalProjectOpenedListError = GlobalProjectOpenedListErrors[keyof GlobalProjectOpenedListErrors]
 
 export type GlobalProjectOpenedListResponses = {
   /**
@@ -6019,6 +5710,15 @@ export type GlobalProjectOpenedMetaData = {
   url: "/global/project/opened"
 }
 
+export type GlobalProjectOpenedMetaErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type GlobalProjectOpenedMetaError = GlobalProjectOpenedMetaErrors[keyof GlobalProjectOpenedMetaErrors]
+
 export type GlobalProjectOpenedMetaResponses = {
   /**
    * Updated project metadata
@@ -6037,6 +5737,15 @@ export type GlobalProjectOpenedOpenData = {
   url: "/global/project/opened"
 }
 
+export type GlobalProjectOpenedOpenErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type GlobalProjectOpenedOpenError = GlobalProjectOpenedOpenErrors[keyof GlobalProjectOpenedOpenErrors]
+
 export type GlobalProjectOpenedOpenResponses = {
   /**
    * Updated opened projects list
@@ -6054,6 +5763,15 @@ export type GlobalProjectOpenedReorderData = {
   query?: never
   url: "/global/project/opened"
 }
+
+export type GlobalProjectOpenedReorderErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type GlobalProjectOpenedReorderError = GlobalProjectOpenedReorderErrors[keyof GlobalProjectOpenedReorderErrors]
 
 export type GlobalProjectOpenedReorderResponses = {
   /**
@@ -8462,9 +8180,9 @@ export type SessionSchedulesData = {
 
 export type SessionSchedulesErrors = {
   /**
-   * Bad request
+   * BadRequest | InvalidRequestError
    */
-  400: BadRequestError
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
   /**
    * NotFoundError
    */
@@ -8482,6 +8200,43 @@ export type SessionSchedulesResponses = {
 
 export type SessionSchedulesResponse = SessionSchedulesResponses[keyof SessionSchedulesResponses]
 
+export type SessionCreateScheduleData = {
+  body?: {
+    expression: string
+    message: string
+  }
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/schedule"
+}
+
+export type SessionCreateScheduleErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionCreateScheduleError = SessionCreateScheduleErrors[keyof SessionCreateScheduleErrors]
+
+export type SessionCreateScheduleResponses = {
+  /**
+   * Created scheduled task
+   */
+  200: Schedule
+}
+
+export type SessionCreateScheduleResponse = SessionCreateScheduleResponses[keyof SessionCreateScheduleResponses]
+
 export type SessionDeleteScheduleData = {
   body?: never
   path: {
@@ -8497,9 +8252,9 @@ export type SessionDeleteScheduleData = {
 
 export type SessionDeleteScheduleErrors = {
   /**
-   * Bad request
+   * BadRequest | InvalidRequestError
    */
-  400: BadRequestError
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
   /**
    * NotFoundError
    */

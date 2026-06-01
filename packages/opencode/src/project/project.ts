@@ -274,10 +274,10 @@ export const layer = Layer.effect(
       const existing = row
         ? fromRow(row)
         : {
-            id: data.id,
-            worktree: data.worktree,
-            vcs: data.vcs,
-            icon: { color: pickDefaultColor(data.worktree) },
+          id: data.id,
+          worktree,
+          vcs: data.vcs?.type,
+          icon: { color: pickDefaultColor(worktree) },
             sandboxes: [] as string[],
             time: { created: Date.now(), updated: Date.now() },
           }

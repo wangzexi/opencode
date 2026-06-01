@@ -41,7 +41,7 @@ function emitOpenedProjectsUpdated() {
   GlobalBus.emit("event", {
     directory: "global",
     payload: {
-      id: Bus.createID(),
+      id: EventV2.ID.create(),
       type: ServerEvent.ProjectOpenedUpdated.type,
       properties: {},
     },
@@ -104,11 +104,7 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       const before = yield* config.getGlobal()
       const result = yield* config.updateGlobal(ctx.payload)
       if (result.changed) {
-        // Only dispose instances if fields that affect runtime changed.
-        // UI-only fields (localServer) should not trigger disposal.
-        const { localServer: _l1, ...beforeCore } = before
-        const { localServer: _l2, ...afterCore } = result.info
-        if (JSON.stringify(beforeCore) !== JSON.stringify(afterCore)) {
+        if (JSON.stringify(before) !== JSON.stringify(result.info)) {
           bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
         }
       }

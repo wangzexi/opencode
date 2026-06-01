@@ -128,7 +128,6 @@ function HomeDesign() {
   const dialog = useDialog()
   const navigate = useNavigate()
   const server = useServer()
-  const openedProjects = useOpenedProjects()
   const language = useLanguage()
   const global = useGlobal()
   const command = useCommand()

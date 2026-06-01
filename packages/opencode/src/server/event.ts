@@ -2,9 +2,9 @@ import { EventV2 } from "@opencode-ai/core/event"
 import { Schema } from "effect"
 
 export const Event = {
-  Connected: BusEvent.define("server.connected", Schema.Struct({})),
-  Disposed: BusEvent.define("global.disposed", Schema.Struct({})),
-  ProjectOpenedUpdated: BusEvent.define("project.opened.updated", Schema.Struct({})),
+  Connected: EventV2.define({ type: "server.connected", schema: {} }),
+  Disposed: EventV2.define({ type: "global.disposed", schema: {} }),
+  ProjectOpenedUpdated: EventV2.define({ type: "project.opened.updated", schema: {} }),
 }
 
 export const InstanceDisposed = Schema.Struct({

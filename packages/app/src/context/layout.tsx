@@ -401,26 +401,21 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       return available[Math.floor(Math.random() * available.length)]
     }
 
-    function enrich(project: { worktree: string; expanded: boolean; name?: string; icon?: { color?: string; override?: string } }) {
-      const [childStore] = globalSync.child(project.worktree, { bootstrap: false })
+    function enrich(project: { worktree: string; expanded: boolean }) {
+      const [childStore] = serverSync.child(project.worktree, { bootstrap: false })
       const projectID = childStore.project
-      const dbProject = projectID
-        ? globalSync.data.project.find((x) => x.id === projectID)
-        : globalSync.data.project.find((x) => x.worktree === project.worktree)
+      const metadata = projectID
+        ? serverSync.data.project.find((x) => x.id === projectID)
+        : serverSync.data.project.find((x) => x.worktree === project.worktree)
 
-      // Config data (name, icon.color, icon.override) is authoritative for display.
-      // Database data supplements with id, sandboxes, icon.url (auto-discovered favicon).
-      return {
-        ...dbProject,
-        worktree: project.worktree,
-        expanded: project.expanded,
-        name: project.name ?? dbProject?.name,
-        icon: {
-          url: dbProject?.icon?.url,
-          color: project.icon?.color,
-          override: project.icon?.override ?? childStore.icon,
-        },
-      } as LocalProject
+      // Preserve local icon override from per-workspace localStorage cache (childStore.icon).
+      // Without this, different subdirectories of the same git repo would share the same
+      // icon from the database instead of using their individual overrides.
+      const base = { ...metadata, ...project }
+      if (childStore.icon) {
+        return { ...base, icon: { ...base.icon, override: childStore.icon } }
+      }
+      return base
     }
 
     const roots = createMemo(() => {
@@ -457,7 +452,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
     }
 
     createEffect(() => {
-      const projects = openedProjects.list()
+      const projects = server.projects.list()
       const seen = new Set(projects.map((project) => project.worktree))
 
       batch(() => {
@@ -465,19 +460,19 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           const root = rootFor(project.worktree)
           if (root === project.worktree) continue
 
-          openedProjects.close(project.worktree)
+          server.projects.close(project.worktree)
 
           if (!seen.has(root)) {
-            openedProjects.open(root)
+            server.projects.open(root)
             seen.add(root)
           }
 
-          if (project.expanded) openedProjects.expand(root)
+          if (project.expanded) server.projects.expand(root)
         }
       })
     })
 
-    const enriched = createMemo(() => openedProjects.list().map(enrich))
+    const enriched = createMemo(() => server.projects.list().map(enrich))
     const list = createMemo(() => {
       const projects = enriched()
       return projects.map((project) => {
@@ -523,6 +518,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           used.add(color)
           setColors(worktree, color)
         }
+        if (!project.id) continue
 
         const requested = colorRequested.get(worktree)
         if (requested === color) continue
@@ -550,8 +546,8 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         sessionTimer = window.setTimeout(() => {
           sessionTimer = undefined
           void Promise.all(
-            openedProjects.list().map((project) => {
-              return globalSync.project.loadSessions(project.worktree)
+            server.projects.list().map((project) => {
+              return serverSync.project.loadSessions(project.worktree)
             }),
           )
         }, 0)
@@ -580,23 +576,21 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         list,
         open(directory: string) {
           const root = rootFor(directory)
-          if (openedProjects.list().find((x) => x.worktree === root)) return
-          // Bootstrap with bootstrap: true to trigger project discovery on the backend
-          globalSync.child(root, { bootstrap: true })
-          void globalSync.project.loadSessions(root)
-          openedProjects.open(root)
+          if (server.projects.list().find((x) => x.worktree === root)) return
+          void serverSync.project.loadSessions(root)
+          server.projects.open(root)
         },
         close(directory: string) {
-          openedProjects.close(directory)
+          server.projects.close(directory)
         },
         expand(directory: string) {
-          openedProjects.expand(directory)
+          server.projects.expand(directory)
         },
         collapse(directory: string) {
-          openedProjects.collapse(directory)
+          server.projects.collapse(directory)
         },
         move(directory: string, toIndex: number) {
-          openedProjects.move(directory, toIndex)
+          server.projects.move(directory, toIndex)
         },
       },
       sidebar: {

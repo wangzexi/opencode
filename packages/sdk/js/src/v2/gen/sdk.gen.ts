@@ -88,10 +88,15 @@ import type {
   GlobalEventResponses,
   GlobalHealthErrors,
   GlobalHealthResponses,
+  GlobalProjectOpenedCloseErrors,
   GlobalProjectOpenedCloseResponses,
+  GlobalProjectOpenedListErrors,
   GlobalProjectOpenedListResponses,
+  GlobalProjectOpenedMetaErrors,
   GlobalProjectOpenedMetaResponses,
+  GlobalProjectOpenedOpenErrors,
   GlobalProjectOpenedOpenResponses,
+  GlobalProjectOpenedReorderErrors,
   GlobalProjectOpenedReorderResponses,
   GlobalUpgradeErrors,
   GlobalUpgradeResponses,
@@ -134,6 +139,7 @@ import type {
   PermissionRespondResponses,
   PermissionRuleset,
   PermissionV2Reply,
+  ProjectConfig,
   ProjectCurrentErrors,
   ProjectCurrentResponses,
   ProjectDirectoriesErrors,
@@ -185,10 +191,14 @@ import type {
   SessionCommandResponses,
   SessionCreateErrors,
   SessionCreateResponses,
+  SessionCreateScheduleErrors,
+  SessionCreateScheduleResponses,
   SessionDeleteErrors,
   SessionDeleteMessageErrors,
   SessionDeleteMessageResponses,
   SessionDeleteResponses,
+  SessionDeleteScheduleErrors,
+  SessionDeleteScheduleResponses,
   SessionDiffErrors,
   SessionDiffResponses,
   SessionForkErrors,
@@ -1287,6 +1297,160 @@ export class Config extends HeyApiClient {
   }
 }
 
+export class Opened extends HeyApiClient {
+  /**
+   * Close a project
+   *
+   * Remove a project from the opened projects list.
+   */
+  public close<ThrowOnError extends boolean = false>(
+    parameters?: {
+      worktree?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "worktree" }] }])
+    return (options?.client ?? this.client).delete<
+      GlobalProjectOpenedCloseResponses,
+      GlobalProjectOpenedCloseErrors,
+      ThrowOnError
+    >({
+      url: "/global/project/opened",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List opened projects
+   *
+   * Get the list of opened projects with their metadata.
+   */
+  public list<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<
+      GlobalProjectOpenedListResponses,
+      GlobalProjectOpenedListErrors,
+      ThrowOnError
+    >({ url: "/global/project/opened", ...options })
+  }
+
+  /**
+   * Update project metadata
+   *
+   * Update name, icon, or commands for an opened project.
+   */
+  public meta<ThrowOnError extends boolean = false>(
+    parameters?: {
+      worktree?: string
+      name?: string
+      icon?: {
+        color?: string
+        override?: string
+      }
+      commands?: {
+        start?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "worktree" },
+            { in: "body", key: "name" },
+            { in: "body", key: "icon" },
+            { in: "body", key: "commands" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      GlobalProjectOpenedMetaResponses,
+      GlobalProjectOpenedMetaErrors,
+      ThrowOnError
+    >({
+      url: "/global/project/opened",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Open a project
+   *
+   * Add a project to the opened projects list.
+   */
+  public open<ThrowOnError extends boolean = false>(
+    parameters?: {
+      worktree?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "worktree" }] }])
+    return (options?.client ?? this.client).post<
+      GlobalProjectOpenedOpenResponses,
+      GlobalProjectOpenedOpenErrors,
+      ThrowOnError
+    >({
+      url: "/global/project/opened",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Reorder opened projects
+   *
+   * Replace the entire opened projects list to reflect new ordering.
+   */
+  public reorder<ThrowOnError extends boolean = false>(
+    parameters?: {
+      projects?: Array<ProjectConfig>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "projects" }] }])
+    return (options?.client ?? this.client).put<
+      GlobalProjectOpenedReorderResponses,
+      GlobalProjectOpenedReorderErrors,
+      ThrowOnError
+    >({
+      url: "/global/project/opened",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Project extends HeyApiClient {
+  private _opened?: Opened
+  get opened(): Opened {
+    return (this._opened ??= new Opened({ client: this.client }))
+  }
+}
+
 export class Global extends HeyApiClient {
   /**
    * Get health
@@ -1351,6 +1515,11 @@ export class Global extends HeyApiClient {
   private _config?: Config
   get config(): Config {
     return (this._config ??= new Config({ client: this.client }))
+  }
+
+  private _project?: Project
+  get project(): Project {
+    return (this._project ??= new Project({ client: this.client }))
   }
 }
 
@@ -3674,6 +3843,51 @@ export class Session2 extends HeyApiClient {
       url: "/session/{sessionID}/schedule",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Create session scheduled task
+   *
+   * Create a cron-driven recurring message for the specified session.
+   */
+  public createSchedule<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      expression?: string
+      message?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "expression" },
+            { in: "body", key: "message" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionCreateScheduleResponses,
+      SessionCreateScheduleErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/schedule",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 

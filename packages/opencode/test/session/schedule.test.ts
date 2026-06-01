@@ -1,20 +1,20 @@
 import { expect } from "bun:test"
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { FSUtil } from "@opencode-ai/core/fs-util"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { Database } from "@opencode-ai/core/database/database"
+import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { Effect, Layer, Queue } from "effect"
-import { BackgroundJob } from "@/background/job"
-import { Bus } from "@/bus"
-import { GlobalBus, type GlobalEvent } from "@/bus/global"
-import { RuntimeFlags } from "@/effect/runtime-flags"
-import { Session } from "@/session/session"
-import { MessageV2 } from "@/session/message-v2"
-import { SessionID } from "@/session/schema"
-import { SessionPrompt } from "@/session/prompt"
-import { Schedule } from "@/session/schedule"
-import { ScheduleRunner } from "@/session/schedule-runner"
-import { SessionStatus } from "@/session/status"
-import { Storage } from "@/storage/storage"
-import { SyncEvent } from "@/sync"
+import { BackgroundJob } from "../../src/background/job"
+import { GlobalBus, type GlobalEvent } from "../../src/bus/global"
+import { EventV2Bridge } from "../../src/event-v2-bridge"
+import { RuntimeFlags } from "../../src/effect/runtime-flags"
+import { SessionPrompt } from "../../src/session/prompt"
+import { ScheduleRunner } from "../../src/session/schedule-runner"
+import { Schedule } from "../../src/session/schedule"
+import { SessionID } from "../../src/session/schema"
+import { Session } from "../../src/session/session"
+import { SessionStatus } from "../../src/session/status"
+import { Storage } from "../../src/storage/storage"
 import { pollWithTimeout, testEffect } from "../lib/effect"
 
 let promptQueue: Queue.Queue<SessionPrompt.PromptInput> | undefined
@@ -31,28 +31,28 @@ const promptLayer = Layer.effect(
           if (input.parts.some((part) => part.type === "text" && part.text === "die after submit")) {
             return yield* Effect.die("submitted then failed")
           }
-          return undefined as unknown as MessageV2.WithParts
+          return undefined as unknown as SessionV1.WithParts
         }),
-      loop: () => Effect.succeed(undefined as unknown as MessageV2.WithParts),
-      shell: () => Effect.succeed(undefined as unknown as MessageV2.WithParts),
-      command: () => Effect.succeed(undefined as unknown as MessageV2.WithParts),
+      loop: () => Effect.succeed(undefined as unknown as SessionV1.WithParts),
+      shell: () => Effect.succeed(undefined as unknown as SessionV1.WithParts),
+      command: () => Effect.succeed(undefined as unknown as SessionV1.WithParts),
       resolvePromptParts: () => Effect.succeed([]),
     })
   }),
 )
 
-const bus = Bus.layer
-const status = SessionStatus.layer.pipe(Layer.provideMerge(bus))
-const schedule = Schedule.layer.pipe(Layer.provideMerge(bus))
+const events = EventV2Bridge.defaultLayer
+const status = SessionStatus.layer.pipe(Layer.provideMerge(events))
+const schedule = Schedule.layer.pipe(Layer.provideMerge(events), Layer.provide(Database.defaultLayer))
 const session = Session.layer.pipe(
-  Layer.provideMerge(bus),
+  Layer.provideMerge(events),
+  Layer.provide(Database.defaultLayer),
   Layer.provide(Storage.defaultLayer),
-  Layer.provide(SyncEvent.defaultLayer),
   Layer.provide(RuntimeFlags.layer({ experimentalWorkspaces: false })),
   Layer.provide(BackgroundJob.defaultLayer),
 )
 const runner = ScheduleRunner.layer.pipe(
-  Layer.provideMerge(bus),
+  Layer.provideMerge(events),
   Layer.provideMerge(status),
   Layer.provideMerge(schedule),
   Layer.provideMerge(promptLayer),
@@ -60,10 +60,11 @@ const runner = ScheduleRunner.layer.pipe(
 
 const it = testEffect(
   Layer.mergeAll(
-    AppFileSystem.defaultLayer,
+    FSUtil.defaultLayer,
     CrossSpawnSpawner.defaultLayer,
+    Database.defaultLayer,
     promptLayer,
-    bus,
+    events,
     status,
     schedule,
     session,

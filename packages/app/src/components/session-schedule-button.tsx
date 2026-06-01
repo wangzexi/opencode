@@ -4,10 +4,10 @@ import { Popover } from "@opencode-ai/ui/popover"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
-import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import type { Event } from "@opencode-ai/sdk/v2/client"
 
 type ScheduleInfo = {
   id: string
@@ -26,7 +26,7 @@ function formatRelativeTime(language: ReturnType<typeof useLanguage>, ts: number
   return new Date(ts).toLocaleString(language.intl())
 }
 
-function scheduleEventSessionID(event: { type: string; properties?: unknown }) {
+function scheduleEventSessionID(event: Event) {
   if (!SCHEDULE_EVENTS.has(event.type)) return
   const properties = event.properties
   if (!properties || typeof properties !== "object" || !("sessionID" in properties)) return
@@ -36,7 +36,6 @@ function scheduleEventSessionID(event: { type: string; properties?: unknown }) {
 
 export function SessionScheduleButton() {
   const language = useLanguage()
-  const globalSDK = useGlobalSDK()
   const sdk = useSDK()
   const { params } = useSessionLayout()
   const queryClient = useQueryClient()
@@ -48,11 +47,13 @@ export function SessionScheduleButton() {
     const id = sessionID()
     if (!id) return
 
-    const unsubscribe = globalSDK.event.on(sdk.directory, (event) => {
-      if (scheduleEventSessionID(event) !== id) return
-      queryClient.invalidateQueries({ queryKey: [...SCHEDULE_QUERY_KEY, id] })
-    })
-    onCleanup(unsubscribe)
+    const subscriptions = [...SCHEDULE_EVENTS].map((event) =>
+      sdk.event.on(event as Event["type"], (payload) => {
+        if (scheduleEventSessionID(payload) !== id) return
+        queryClient.invalidateQueries({ queryKey: [...SCHEDULE_QUERY_KEY, id] })
+      }),
+    )
+    onCleanup(() => subscriptions.forEach((unsubscribe) => unsubscribe()))
   })
 
   const schedulesQuery = useQuery(() => ({
@@ -61,7 +62,7 @@ export function SessionScheduleButton() {
     queryFn: async () => {
       const id = sessionID()
       if (!id) return [] as ScheduleInfo[]
-      const result = await globalSDK.client.session.schedules({ sessionID: id })
+      const result = await sdk.client.session.schedules({ sessionID: id })
       return ((result?.data as ScheduleInfo[] | undefined) ?? []) as ScheduleInfo[]
     },
     refetchInterval: 10_000,
@@ -72,7 +73,7 @@ export function SessionScheduleButton() {
     mutationFn: async (scheduleID: string) => {
       const id = sessionID()
       if (!id) return
-      await globalSDK.client.session.deleteSchedule({ sessionID: id, scheduleID })
+      await sdk.client.session.deleteSchedule({ sessionID: id, scheduleID })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [...SCHEDULE_QUERY_KEY, sessionID()] })

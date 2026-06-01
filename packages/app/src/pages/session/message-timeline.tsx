@@ -56,7 +56,6 @@ import { normalize } from "@opencode-ai/ui/session-diff"
 import { useFileComponent } from "@opencode-ai/ui/context/file"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 import { SessionContextUsage } from "@/components/session-context-usage"
-import { SessionScheduleButton } from "@/components/session-schedule-button"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLanguage } from "@/context/language"
@@ -1107,323 +1106,37 @@ export function MessageTimeline(props: {
     )
   }
 
-            const delta = prev - next
-            if (!delta) return
-
-            const root = e.currentTarget
-            markBoundaryGesture({ root, target: e.target, delta, onMarkScrollGesture: props.onMarkScrollGesture })
-          }}
-          onTouchEnd={() => {
-            touchGesture = undefined
-          }}
-          onTouchCancel={() => {
-            touchGesture = undefined
-          }}
-          onPointerDown={(e) => {
-            if (e.target !== e.currentTarget) return
-            props.onMarkScrollGesture(e.currentTarget)
-          }}
-          onScroll={(e) => {
-            props.onScheduleScrollState(e.currentTarget)
-            props.onTurnBackfillScroll()
-            if (!props.hasScrollGesture()) return
-            props.onUserScroll()
-            props.onAutoScrollHandleScroll()
-            props.onMarkScrollGesture(e.currentTarget)
-          }}
-          onClick={props.onAutoScrollInteraction}
-          class="relative min-w-0 w-full h-full"
-          style={{
-            "--session-title-height": showHeader() ? "40px" : "0px",
-            "--sticky-accordion-top": showHeader() ? "48px" : "0px",
-          }}
-        >
-          <div ref={props.setContentRef} class="min-w-0 w-full">
-            <Show when={showHeader()}>
-              <div
-                ref={(el) => {
-                  head = el
-                  setBar("ms", pace(el.clientWidth))
-                }}
-                data-session-title
-                classList={{
-                  "sticky top-0 z-30 bg-[linear-gradient(to_bottom,var(--background-stronger)_48px,transparent)]": true,
-                  relative: true,
-                  "w-full": true,
-                  "pb-4": true,
-                  "pl-2 pr-3 md:pl-4 md:pr-3": true,
-                  "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": props.centered,
-                }}
-              >
-                <Show when={workingStatus() !== "hidden" && settings.general.showSessionProgressBar()}>
-                  <div
-                    data-component="session-progress"
-                    data-state={workingStatus()}
-                    aria-hidden="true"
-                    style={{
-                      "--session-progress-color": tint() ?? "var(--icon-interactive-base)",
-                      "--session-progress-ms": `${bar.ms}ms`,
-                    }}
-                  >
-                    <div data-component="session-progress-bar" />
-                  </div>
-                </Show>
-                <div class="h-12 w-full flex items-center justify-between gap-2">
-                  <div class="flex items-center gap-1 min-w-0 flex-1 pr-3">
-                    <div class="flex items-center min-w-0 grow-1">
-                      <Show when={parentID()}>
-                        <button
-                          type="button"
-                          data-slot="session-title-parent"
-                          class="min-w-0 max-w-[40%] truncate text-14-medium text-text-weak transition-colors hover:text-text-base"
-                          onClick={navigateParent}
-                        >
-                          {parentTitle()}
-                        </button>
-                        <span
-                          data-slot="session-title-separator"
-                          class="px-2 text-14-medium text-text-weak"
-                          aria-hidden="true"
-                        >
-                          /
-                        </span>
-                      </Show>
-                      <div
-                        class="shrink-0 flex items-center justify-center overflow-hidden transition-[width,margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-                        style={{
-                          width: working() ? "16px" : "0px",
-                          "margin-right": working() ? "8px" : "0px",
-                        }}
-                        aria-hidden="true"
-                      >
-                        <Show when={workingStatus() !== "hidden"}>
-                          <div
-                            class="transition-opacity duration-200 ease-out"
-                            classList={{ "opacity-0": workingStatus() === "hiding" }}
-                          >
-                            <Spinner class="size-4" style={{ color: tint() ?? "var(--icon-interactive-base)" }} />
-                          </div>
-                        </Show>
-                      </div>
-                      <Show when={childTitle() || title.editing}>
-                        <Show
-                          when={title.editing}
-                          fallback={
-                            <h1
-                              data-slot="session-title-child"
-                              class="text-14-medium text-text-strong truncate grow-1 min-w-0"
-                              onDblClick={openTitleEditor}
-                            >
-                              {childTitle()}
-                            </h1>
-                          }
-                        >
-                          <InlineInput
-                            ref={(el) => {
-                              titleRef = el
-                            }}
-                            data-slot="session-title-child"
-                            value={title.draft}
-                            disabled={titleMutation.isPending}
-                            class="text-14-medium text-text-strong grow-1 min-w-0 rounded-[6px] pl-1 -ml-1"
-                            style={{ "--inline-input-shadow": "var(--shadow-xs-border-select)" }}
-                            onInput={(event) => setTitle("draft", event.currentTarget.value)}
-                            onKeyDown={(event) => {
-                              event.stopPropagation()
-                              if (event.key === "Enter") {
-                                event.preventDefault()
-                                void saveTitleEditor()
-                                return
-                              }
-                              if (event.key === "Escape") {
-                                event.preventDefault()
-                                closeTitleEditor()
-                              }
-                            }}
-                            onBlur={closeTitleEditor}
-                          />
-                        </Show>
-                      </Show>
-                    </div>
-                  </div>
-                  <Show when={sessionID()} keyed>
-                    {(id) => (
-                      <div class="shrink-0 flex items-center gap-3">
-                        <SessionScheduleButton />
-                        <SessionContextUsage placement="bottom" />
-                        <Show when={!parentID()}>
-                          <DropdownMenu
-                            gutter={4}
-                            placement="bottom-end"
-                            open={title.menuOpen}
-                            onOpenChange={(open) => {
-                              setTitle("menuOpen", open)
-                              if (open) return
-                            }}
-                          >
-                            <DropdownMenu.Trigger
-                              as={IconButton}
-                              icon="dot-grid"
-                              variant="ghost"
-                              class="size-6 rounded-md data-[expanded]:bg-surface-base-active"
-                              classList={{
-                                "bg-surface-base-active": share.open || title.pendingShare,
-                              }}
-                              aria-label={language.t("common.moreOptions")}
-                              aria-expanded={title.menuOpen || share.open || title.pendingShare}
-                              ref={(el: HTMLButtonElement) => {
-                                more = el
-                              }}
-                            />
-                            <DropdownMenu.Portal>
-                              <DropdownMenu.Content
-                                style={{ "min-width": "104px" }}
-                                onCloseAutoFocus={(event) => {
-                                  if (title.pendingRename) {
-                                    event.preventDefault()
-                                    setTitle("pendingRename", false)
-                                    openTitleEditor()
-                                    return
-                                  }
-                                  if (title.pendingShare) {
-                                    event.preventDefault()
-                                    requestAnimationFrame(() => {
-                                      setShare({ open: true, dismiss: null })
-                                      setTitle("pendingShare", false)
-                                    })
-                                  }
-                                }}
-                              >
-                                <DropdownMenu.Item
-                                  onSelect={() => {
-                                    setTitle("pendingRename", true)
-                                    setTitle("menuOpen", false)
-                                  }}
-                                >
-                                  <DropdownMenu.ItemLabel>{language.t("common.rename")}</DropdownMenu.ItemLabel>
-                                </DropdownMenu.Item>
-                                <Show when={shareEnabled()}>
-                                  <DropdownMenu.Item
-                                    onSelect={() => {
-                                      setTitle({ pendingShare: true, menuOpen: false })
-                                    }}
-                                  >
-                                    <DropdownMenu.ItemLabel>
-                                      {language.t("session.share.action.share")}
-                                    </DropdownMenu.ItemLabel>
-                                  </DropdownMenu.Item>
-                                </Show>
-                                <DropdownMenu.Item onSelect={() => void archiveSession(id)}>
-                                  <DropdownMenu.ItemLabel>{language.t("common.archive")}</DropdownMenu.ItemLabel>
-                                </DropdownMenu.Item>
-                                <DropdownMenu.Separator />
-                                <DropdownMenu.Item
-                                  onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}
-                                >
-                                  <DropdownMenu.ItemLabel>{language.t("common.delete")}</DropdownMenu.ItemLabel>
-                                </DropdownMenu.Item>
-                              </DropdownMenu.Content>
-                            </DropdownMenu.Portal>
-                          </DropdownMenu>
-
-                          <KobaltePopover
-                            open={share.open}
-                            anchorRef={() => more}
-                            placement="bottom-end"
-                            gutter={4}
-                            modal={false}
-                            onOpenChange={(open) => {
-                              if (open) setShare("dismiss", null)
-                              setShare("open", open)
-                            }}
-                          >
-                            <KobaltePopover.Portal>
-                              <KobaltePopover.Content
-                                data-component="popover-content"
-                                style={{ "min-width": "320px" }}
-                                onEscapeKeyDown={(event) => {
-                                  setShare({ dismiss: "escape", open: false })
-                                  event.preventDefault()
-                                  event.stopPropagation()
-                                }}
-                                onPointerDownOutside={() => {
-                                  setShare({ dismiss: "outside", open: false })
-                                }}
-                                onFocusOutside={() => {
-                                  setShare({ dismiss: "outside", open: false })
-                                }}
-                                onCloseAutoFocus={(event) => {
-                                  if (share.dismiss === "outside") event.preventDefault()
-                                  setShare("dismiss", null)
-                                }}
-                              >
-                                <div class="flex flex-col p-3">
-                                  <div class="flex flex-col gap-1">
-                                    <div class="text-13-medium text-text-strong">
-                                      {language.t("session.share.popover.title")}
-                                    </div>
-                                    <div class="text-12-regular text-text-weak">
-                                      {shareUrl()
-                                        ? language.t("session.share.popover.description.shared")
-                                        : language.t("session.share.popover.description.unshared")}
-                                    </div>
-                                  </div>
-                                  <div class="mt-3 flex flex-col gap-2">
-                                    <Show
-                                      when={shareUrl()}
-                                      fallback={
-                                        <Button
-                                          size="large"
-                                          variant="primary"
-                                          class="w-full"
-                                          onClick={shareSession}
-                                          disabled={shareMutation.isPending}
-                                        >
-                                          {shareMutation.isPending
-                                            ? language.t("session.share.action.publishing")
-                                            : language.t("session.share.action.publish")}
-                                        </Button>
-                                      }
-                                    >
-                                      <div class="flex flex-col gap-2">
-                                        <TextField
-                                          value={shareUrl() ?? ""}
-                                          readOnly
-                                          copyable
-                                          copyKind="link"
-                                          tabIndex={-1}
-                                          class="w-full"
-                                        />
-                                        <div class="grid grid-cols-2 gap-2">
-                                          <Button
-                                            size="large"
-                                            variant="secondary"
-                                            class="w-full shadow-none border border-border-weak-base"
-                                            onClick={unshareSession}
-                                            disabled={unshareMutation.isPending}
-                                          >
-                                            {unshareMutation.isPending
-                                              ? language.t("session.share.action.unpublishing")
-                                              : language.t("session.share.action.unpublish")}
-                                          </Button>
-                                          <Button
-                                            size="large"
-                                            variant="primary"
-                                            class="w-full"
-                                            onClick={viewShare}
-                                            disabled={unshareMutation.isPending}
-                                          >
-                                            {language.t("session.share.action.view")}
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </Show>
-                                  </div>
-                                </div>
-                              </KobaltePopover.Content>
-                            </KobaltePopover.Portal>
-                          </KobaltePopover>
-                        </Show>
+  const renderTimelineRow = (row: Accessor<TimelineRow.TimelineRow>) => {
+    switch (row()._tag) {
+      case "CommentStrip": {
+        const commentStripRow = row as Accessor<TimelineRowByTag<"CommentStrip">>
+        const comments = createMemo(() =>
+          getMsgParts(commentStripRow().userMessageID).flatMap((part) => MessageComment.fromPart(part) ?? []),
+        )
+        return (
+          <TimelineRowFrame row={commentStripRow}>
+            <div class="w-full px-4 md:px-5 pb-2">
+              <div class="ml-auto max-w-[82%] overflow-x-auto no-scrollbar">
+                <div class="flex w-max min-w-full justify-end gap-2">
+                  <Index each={comments()}>
+                    {(comment) => (
+                      <div class="shrink-0 max-w-[260px] rounded-[6px] border border-border-weak-base bg-background-stronger px-2.5 py-2">
+                        <div class="flex items-center gap-1.5 min-w-0 text-11-medium text-text-strong">
+                          <FileIcon node={{ path: comment().path, type: "file" }} class="size-3.5 shrink-0" />
+                          <span class="truncate">{getFilename(comment().path)}</span>
+                          <Show when={comment().selection}>
+                            {(selection) => (
+                              <span class="shrink-0 text-text-weak">
+                                {selection().startLine === selection().endLine
+                                  ? `:${selection().startLine}`
+                                  : `:${selection().startLine}-${selection().endLine}`}
+                              </span>
+                            )}
+                          </Show>
+                        </div>
+                        <div class="pt-1 text-12-regular text-text-strong whitespace-pre-wrap break-words">
+                          {comment().comment}
+                        </div>
                       </div>
                     )}
                   </Index>

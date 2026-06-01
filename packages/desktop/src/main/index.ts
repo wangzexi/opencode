@@ -21,8 +21,10 @@ import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
 import {
   getDefaultServerUrl,
+  getLocalServerConfig,
   preferAppEnv,
   setDefaultServerUrl,
+  setLocalServerConfig,
   spawnLocalServer,
   type SidecarListener,
 } from "./server"
@@ -246,6 +248,8 @@ const main = Effect.gen(function* () {
     consumeInitialDeepLinks: () => pendingDeepLinks.splice(0),
     getDefaultServerUrl: () => getDefaultServerUrl(),
     setDefaultServerUrl: (url) => setDefaultServerUrl(url),
+    getLocalServerConfig: () => getLocalServerConfig(),
+    setLocalServerConfig: (config) => setLocalServerConfig(config),
     getDisplayBackend: async () => null,
     setDisplayBackend: async () => undefined,
     parseMarkdown: async (markdown) => parseMarkdown(markdown),
@@ -275,12 +279,16 @@ const main = Effect.gen(function* () {
     ),
   )
 
-  const port = yield* Effect.gen(function* () {
-    const fromEnv = process.env.OPENCODE_PORT
-    if (fromEnv) {
-      const parsed = Number.parseInt(fromEnv, 10)
-      if (!Number.isNaN(parsed)) return parsed
-    }
+  const localServer = getLocalServerConfig()
+  const port =
+    localServer.enabled && localServer.port !== null
+      ? localServer.port
+      : yield* Effect.gen(function* () {
+          const fromEnv = process.env.OPENCODE_PORT
+          if (fromEnv) {
+            const parsed = Number.parseInt(fromEnv, 10)
+            if (!Number.isNaN(parsed)) return parsed
+          }
 
           const res = yield* Deferred.make<number, unknown>()
           const server = createServer()
@@ -311,7 +319,7 @@ const main = Effect.gen(function* () {
 
     logger.log("spawning sidecar", { url })
     const { listener, health } = yield* Effect.promise(() =>
-      spawnLocalServer(hostname, port, password, {
+      spawnLocalServer(hostname, port, username, password, {
         userDataPath: app.getPath("userData"),
         onStdout: (message) => writeLog("server", "stdout", { message }),
         onStderr: (message) => writeLog("server", "stderr", { message }, "warn"),

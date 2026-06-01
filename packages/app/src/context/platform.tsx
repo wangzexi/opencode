@@ -10,11 +10,17 @@ type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
 type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: string[]; extensions?: string[] }
 type SaveFilePickerOptions = { title?: string; defaultPath?: string }
 type UpdateInfo = { updateAvailable: boolean; version?: string }
-export type LocalServerConfig = {
-  enabled: boolean
-  username: string
-  password: string
-  port: number | null
+type PlatformName = "web" | "desktop"
+type DesktopOS = "macos" | "windows" | "linux"
+export type LocalServerRuntimeConfig = { enabled: boolean; username: string; password: string; port: number }
+export type LocalServerConfig = { enabled: boolean; username: string; password: string; port: number | null }
+
+export type FatalRendererErrorLog = {
+  error: string
+  url: string
+  version?: string
+  platform: PlatformName
+  os?: DesktopOS
 }
 
 export type Platform = {
@@ -72,6 +78,15 @@ export type Platform = {
   /** Set the default server URL to use on app startup (platform-specific) */
   setDefaultServer?(url: ServerConnection.Key | null): Promise<void> | void
 
+  /** Current local sidecar server runtime config (desktop only) */
+  localServerRuntimeConfig?(): LocalServerRuntimeConfig | undefined
+
+  /** Get local sidecar server startup config (desktop only) */
+  getLocalServerConfig?(): Promise<LocalServerConfig> | LocalServerConfig
+
+  /** Set local sidecar server startup config (desktop only) */
+  setLocalServerConfig?(config: LocalServerConfig): Promise<void> | void
+
   /** Manage WSL sidecar servers (Electron on Windows only) */
   wslServers?: WslServersPlatform
 
@@ -80,15 +95,6 @@ export type Platform = {
 
   /** Set the preferred display backend (desktop only) */
   setDisplayBackend?(backend: DisplayBackend): Promise<void>
-
-  /** Get local server config (desktop only) */
-  getLocalServerConfig?(): Promise<LocalServerConfig>
-
-  /** The local server config currently used by the running sidecar (desktop only) */
-  localServerRuntimeConfig?: Accessor<LocalServerConfig | undefined>
-
-  /** Set local server config (desktop only) */
-  setLocalServerConfig?(config: LocalServerConfig): Promise<void>
 
   /** Parse markdown to HTML using native parser (desktop only, returns unprocessed code blocks) */
   parseMarkdown?(markdown: string): Promise<string>

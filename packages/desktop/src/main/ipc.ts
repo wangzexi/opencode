@@ -3,7 +3,7 @@ import { BrowserWindow, Notification, clipboard, dialog, ipcMain, shell } from "
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
 
-import type { FatalRendererError, ServerReadyData, TitlebarTheme, WindowConfig } from "../preload/types"
+import type { FatalRendererError, LocalServerConfig, ServerReadyData, TitlebarTheme, WindowConfig } from "../preload/types"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
 import { getStore } from "./store"
 import { getPinchZoomEnabled, setPinchZoomEnabled, setTitlebar, updateTitlebar } from "./windows"
@@ -21,6 +21,8 @@ type Deps = {
   consumeInitialDeepLinks: () => Promise<string[]> | string[]
   getDefaultServerUrl: () => Promise<string | null> | string | null
   setDefaultServerUrl: (url: string | null) => Promise<void> | void
+  getLocalServerConfig: () => Promise<LocalServerConfig> | LocalServerConfig
+  setLocalServerConfig: (config: LocalServerConfig) => Promise<void> | void
   getDisplayBackend: () => Promise<string | null>
   setDisplayBackend: (backend: string | null) => Promise<void> | void
   parseMarkdown: (markdown: string) => Promise<string> | string
@@ -42,6 +44,10 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("get-default-server-url", () => deps.getDefaultServerUrl())
   ipcMain.handle("set-default-server-url", (_event: IpcMainInvokeEvent, url: string | null) =>
     deps.setDefaultServerUrl(url),
+  )
+  ipcMain.handle("get-local-server-config", () => deps.getLocalServerConfig())
+  ipcMain.handle("set-local-server-config", (_event: IpcMainInvokeEvent, config: LocalServerConfig) =>
+    deps.setLocalServerConfig(config),
   )
   ipcMain.handle("get-display-backend", () => deps.getDisplayBackend())
   ipcMain.handle("set-display-backend", (_event: IpcMainInvokeEvent, backend: string | null) =>

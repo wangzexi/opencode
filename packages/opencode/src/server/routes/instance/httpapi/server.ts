@@ -63,7 +63,13 @@ import { ServerAuth } from "@/server/auth"
 import { InstanceHttpApi, RootHttpApi } from "./api"
 import { V2Api } from "@opencode-ai/server/api"
 import { PublicApi } from "./public"
-import { authorizationLayer, authorizationRouterMiddleware, uiRouterMiddleware } from "./middleware/authorization"
+import {
+  authorizationLayer,
+  authorizationRouterMiddleware,
+  ptyConnectAuthorizationLayer,
+  uiRouterMiddleware,
+  v2AuthorizationLayer,
+} from "./middleware/authorization"
 import { EventApi } from "./groups/event"
 import { PtyConnectApi } from "./groups/pty"
 import { eventHandlers } from "./handlers/event"

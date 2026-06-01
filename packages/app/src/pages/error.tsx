@@ -215,21 +215,6 @@ function formatError(error: unknown, t: Translator): string {
   return formatErrorChain(error, t, 0)
 }
 
-function is401(error: unknown, depth = 0): boolean {
-  if (!error || depth > 5) return false
-  if (isInitError(error) && error.name === "APIError") {
-    return (error.data as { statusCode?: number }).statusCode === 401
-  }
-  if (error instanceof Error) {
-    if (error.message.includes("401 Unauthorized")) return true
-    return is401(error.cause, depth + 1)
-  }
-  if (typeof error === "object" && "status" in error) {
-    return (error as { status?: number }).status === 401
-  }
-  return false
-}
-
 interface ErrorPageProps {
   error: unknown
 }
@@ -288,26 +273,15 @@ export const ErrorPage: Component<ErrorPageProps> = (props) => {
       })
   }
 
-  if (is401(props.error)) {
-    return (
-      <div class="relative flex-1 h-screen w-screen min-h-0 flex flex-col items-center justify-center bg-background-base font-sans">
-        <div class="w-2/3 max-w-md flex flex-col items-center justify-center gap-8">
-          <Logo class="w-58.5 opacity-12 shrink-0" />
-          <div class="flex flex-col items-center gap-2 text-center">
-            <h1 class="text-lg font-medium text-text-strong">{language.t("error.page.auth.title")}</h1>
-            <p class="text-sm text-text-weak">{language.t("error.page.auth.description")}</p>
-          </div>
-          <Button size="large" onClick={() => { window.location.href = "/" }}>
-            {language.t("error.page.auth.action.home")}
-          </Button>
-          <Show when={platform.version}>
-            {(version) => (
-              <p class="text-xs text-text-weak">{language.t("error.page.version", { version: version() })}</p>
-            )}
-          </Show>
-        </div>
-      </div>
-    )
+  async function exportDebugLogs() {
+    const exportLogs = platform.exportDebugLogs
+    if (!exportLogs) return
+    await ensureFatalErrorRecorded()
+      .then(() => exportLogs())
+      .then(() => setStore("actionError", undefined))
+      .catch((err) => {
+        setStore("actionError", formatError(err, language.t))
+      })
   }
 
   return (

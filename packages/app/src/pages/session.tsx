@@ -30,8 +30,8 @@ import { previewSelectedLines } from "@opencode-ai/ui/pierre/selection-bridge"
 import { Button } from "@opencode-ai/ui/button"
 import { showToast } from "@/utils/toast"
 import { checksum } from "@opencode-ai/core/util/encode"
-import { useNavigate, useSearchParams } from "@solidjs/router"
-import { NewSessionView, SessionHeader } from "@/components/session"
+import { useLocation, useSearchParams } from "@solidjs/router"
+import { NewSessionDesignView, NewSessionView, SessionHeader } from "@/components/session"
 import { useComments } from "@/context/comments"
 import { getSessionPrefetch, SESSION_PREFETCH_TTL } from "@/context/global-sync/session-prefetch"
 import { useServerSync } from "@/context/server-sync"
@@ -302,21 +302,6 @@ export default function Page() {
   }
 
   const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
-  const navigate = useNavigate()
-  // When a session subpath can't be resolved (auth failure, session not found),
-  // redirect to home rather than leaving the user on a white/stuck page.
-  createEffect(
-    on(
-      () => params.id,
-      (id) => {
-        if (!id) return
-        const timer = setTimeout(() => {
-          if (!info()) navigate("/")
-        }, 8000)
-        onCleanup(() => clearTimeout(timer))
-      },
-    ),
-  )
   const isChildSession = createMemo(() => !!info()?.parentID)
   const diffs = createMemo(() => (params.id ? list(sync.data.session_diff[params.id]) : []))
   const canReview = createMemo(() => !!sync.project)

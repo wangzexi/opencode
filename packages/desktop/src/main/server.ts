@@ -2,7 +2,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, utilityProcess } from "electron"
 import type { Details } from "electron"
-import { DEFAULT_SERVER_URL_KEY } from "./constants"
+import { DEFAULT_SERVER_URL_KEY, LOCAL_SERVER_CONFIG_KEY } from "./constants"
 import { getUserShell, loadShellEnv } from "./shell-env"
 import { getStore } from "./store"
 
@@ -14,6 +14,7 @@ type SidecarMessage =
   | { type: "error"; error: { message: string; stack?: string } }
 
 export type SidecarListener = { stop: () => Promise<void> }
+export type LocalServerConfig = { enabled: boolean; username: string; password: string; port: number | null }
 
 const SIDECAR_SERVICE_NAME = "opencode server"
 const SIDECAR_START_STALL_TIMEOUT = 60_000
@@ -39,6 +40,33 @@ export function setDefaultServerUrl(url: string | null) {
   }
 
   getStore().delete(DEFAULT_SERVER_URL_KEY)
+}
+
+function sanitizeLocalServerConfig(value: unknown): LocalServerConfig | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return
+  const record = value as Record<string, unknown>
+  return {
+    enabled: typeof record.enabled === "boolean" ? record.enabled : false,
+    username: typeof record.username === "string" ? record.username : "",
+    password: typeof record.password === "string" ? record.password : "",
+    port:
+      typeof record.port === "number" && Number.isInteger(record.port) && record.port > 0 && record.port <= 65535
+        ? record.port
+        : null,
+  }
+}
+
+export function getLocalServerConfig(): LocalServerConfig {
+  return sanitizeLocalServerConfig(getStore().get(LOCAL_SERVER_CONFIG_KEY)) ?? emptyLocalServerConfig
+}
+
+export function setLocalServerConfig(config: LocalServerConfig) {
+  getStore().set(LOCAL_SERVER_CONFIG_KEY, {
+    enabled: config.enabled,
+    ...(config.port !== null ? { port: config.port } : {}),
+    ...(config.username ? { username: config.username } : {}),
+    ...(config.password ? { password: config.password } : {}),
+  })
 }
 
 export function preferAppEnv(userDataPath: string) {

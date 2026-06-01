@@ -1,15 +1,11 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
-import { SessionTable } from "./session.sql"
 import type { SessionID } from "./schema"
 
 export const ScheduleTable = sqliteTable(
   "schedule",
   {
     id: text().primaryKey(),
-    session_id: text()
-      .$type<SessionID>()
-      .notNull()
-      .references(() => SessionTable.id, { onDelete: "cascade" }),
+    session_id: text().$type<SessionID>().notNull(),
     expression: text().notNull(),
     message: text().notNull(),
     created_at: integer().notNull(),

@@ -22,6 +22,7 @@ export type ServerReadyData = {
   port: number
 }
 
+export type LocalServerConfig = { enabled: boolean; username: string; password: string; port: number | null }
 export type WslServersAPI = WslServersPlatform
 
 export type LinuxDisplayBackend = "wayland" | "auto"
@@ -49,6 +50,8 @@ export type ElectronAPI = {
   consumeInitialDeepLinks: () => Promise<string[]>
   getDefaultServerUrl: () => Promise<string | null>
   setDefaultServerUrl: (url: string | null) => Promise<void>
+  getLocalServerConfig: () => Promise<LocalServerConfig>
+  setLocalServerConfig: (config: LocalServerConfig) => Promise<void>
   getDisplayBackend: () => Promise<LinuxDisplayBackend | null>
   setDisplayBackend: (backend: LinuxDisplayBackend | null) => Promise<void>
   parseMarkdownCommand: (markdown: string) => Promise<string>

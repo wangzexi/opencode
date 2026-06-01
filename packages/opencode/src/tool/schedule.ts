@@ -1,5 +1,5 @@
 import { Effect, Schema } from "effect"
-import { Schedule } from "@/session/schedule"
+import { Schedule } from "../session/schedule"
 import * as Tool from "./tool"
 
 const DESCRIPTION = `Manage recurring scheduled tasks attached to the current session.

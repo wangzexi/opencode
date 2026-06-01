@@ -1,4 +1,5 @@
 import { FSUtil } from "@opencode-ai/core/fs-util"
+import { Flag } from "@opencode-ai/core/flag/flag"
 import { Effect, Stream } from "effect"
 import { HttpBody, HttpClient, HttpClientRequest, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createHash } from "node:crypto"
@@ -96,7 +97,7 @@ export function serveEmbeddedUIEffect(
 
 function serveLocalDirEffect(
   requestPath: string,
-  fs: AppFileSystem.Interface,
+  fs: FSUtil.Interface,
   dir: string,
 ) {
   const filePath = path.join(dir, requestPath === "/" ? "index.html" : requestPath)
