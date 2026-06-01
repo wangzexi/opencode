@@ -141,6 +141,7 @@ export const dict = {
   "ui.message.revertMessage": "重設至此點",
   "ui.message.copyResponse": "複製回覆",
   "ui.message.copied": "已複製！",
+  "ui.message.scheduled": "定時任務",
   "ui.message.interrupted": "已中斷",
   "ui.message.queued": "排隊中",
   "ui.message.attachment.alt": "附件",

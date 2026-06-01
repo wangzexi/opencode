@@ -10,6 +10,7 @@ import { Effect, Layer } from "effect"
 import { Config } from "@/config/config"
 import { Service } from "./bootstrap-service"
 import { Reference } from "@/reference/reference"
+import { ScheduleRunner } from "@/session/schedule-runner"
 
 export { Service } from "./bootstrap-service"
 export type { Interface } from "./bootstrap-service"
@@ -26,6 +27,7 @@ export const layer = Layer.effect(
     const plugin = yield* Plugin.Service
     const project = yield* Project.Service
     const reference = yield* Reference.Service
+    const scheduleRunner = yield* ScheduleRunner.Service
     const shareNext = yield* ShareNext.Service
     const snapshot = yield* Snapshot.Service
     const vcs = yield* Vcs.Service
@@ -58,6 +60,7 @@ export const defaultLayer: Layer.Layer<Service> = layer.pipe(
     Plugin.defaultLayer,
     Project.defaultLayer,
     Reference.defaultLayer,
+    ScheduleRunner.defaultLayer,
     ShareNext.defaultLayer,
     Snapshot.defaultLayer,
     Vcs.defaultLayer,

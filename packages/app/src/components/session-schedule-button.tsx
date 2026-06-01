@@ -3,9 +3,10 @@ import { Icon } from "@opencode-ai/ui/icon"
 import { Popover } from "@opencode-ai/ui/popover"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
-import { For, Show, createMemo, createSignal } from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
+import { useSDK } from "@/context/sdk"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
 type ScheduleInfo = {
@@ -18,20 +19,41 @@ type ScheduleInfo = {
 }
 
 const SCHEDULE_QUERY_KEY = ["session", "schedules"] as const
+const SCHEDULE_EVENTS = new Set(["schedule.created", "schedule.deleted", "schedule.ran"])
 
 function formatRelativeTime(language: ReturnType<typeof useLanguage>, ts: number | null) {
   if (ts === null) return null
   return new Date(ts).toLocaleString(language.intl())
 }
 
+function scheduleEventSessionID(event: { type: string; properties?: unknown }) {
+  if (!SCHEDULE_EVENTS.has(event.type)) return
+  const properties = event.properties
+  if (!properties || typeof properties !== "object" || !("sessionID" in properties)) return
+  const sessionID = properties.sessionID
+  if (typeof sessionID === "string") return sessionID
+}
+
 export function SessionScheduleButton() {
   const language = useLanguage()
   const globalSDK = useGlobalSDK()
+  const sdk = useSDK()
   const { params } = useSessionLayout()
   const queryClient = useQueryClient()
   const [shown, setShown] = createSignal(false)
 
   const sessionID = createMemo(() => params.id)
+
+  createEffect(() => {
+    const id = sessionID()
+    if (!id) return
+
+    const unsubscribe = globalSDK.event.on(sdk.directory, (event) => {
+      if (scheduleEventSessionID(event) !== id) return
+      queryClient.invalidateQueries({ queryKey: [...SCHEDULE_QUERY_KEY, id] })
+    })
+    onCleanup(unsubscribe)
+  })
 
   const schedulesQuery = useQuery(() => ({
     queryKey: [...SCHEDULE_QUERY_KEY, sessionID()],

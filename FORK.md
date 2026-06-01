@@ -105,6 +105,40 @@ cd packages/app && bun run build
 
 ---
 
+### 6 · 会话级定时任务（Schedule Task）— `db306c8` / `4cfe1ca` / `c03656b`
+
+**涉及文件：** `packages/opencode/src/session/schedule{,-runner,.sql}.ts`、`packages/opencode/src/tool/schedule.ts`、`packages/opencode/src/tool/registry.ts`、`packages/opencode/src/server/routes/instance/httpapi/{groups,handlers}/session.ts`、`packages/app/src/components/session-schedule-button.tsx`、DB 迁移文件、相关测试
+
+**功能说明：**
+
+为单个会话新增 cron 驱动的定时任务。每个 schedule 绑定一个 `sessionID`、cron 表达式和 message；到点后向该会话注入一条用户消息，交给现有 `SessionPrompt.prompt` 流程继续执行。最短间隔为 60 秒，每个会话最多 10 个 schedule。
+
+**入口：**
+
+- AI 工具：`schedule({ action: "create" | "list" | "delete", ... })`，供模型在会话内创建、查询和删除定时任务。
+- HTTP API：
+  - `POST /session/:sessionID/schedule` 创建 schedule
+  - `GET /session/:sessionID/schedule` 查询当前会话 schedule
+  - `DELETE /session/:sessionID/schedule/:scheduleID` 删除 schedule
+- UI：会话页 schedule popover 显示 schedule 列表、最近运行状态与删除操作，并监听 `schedule.created/deleted/ran` 事件即时刷新；定时触发注入的用户消息会携带 `metadata.source = "schedule"`，Web timeline 将其展示为“定时任务”标记。
+
+**运行语义：**
+
+- `Schedule.Service` 负责持久化 schedule、校验 cron、维护当前进程内的 `Cron` timer，并在 timer 触发时发布 `schedule.triggered`。
+- `ScheduleRunner` 在项目实例 bootstrap 时初始化，监听 `GlobalBus` 上同目录的 `schedule.triggered`。这样无论 schedule 是通过 HTTP handler 还是 AI tool 创建，runner 都能接住触发事件。
+- 触发时先检查 `SessionStatus`：如果会话 busy，则跳过本次 tick，并记录 `schedule_run.status = "skipped"`；不会排队补跑。
+- 如果会话 idle，则后台 fork `SessionPrompt.prompt` 注入定时消息，并立即记录 `schedule_run.status = "ran"`。记录的是“本次定时消息已提交”，不等待模型整轮回复完成，避免 provider 阻塞导致 schedule 状态一直为空。
+- `GET /schedule` 返回 `lastRanAt`、`lastRunStatus` 和当前进程 timer 的 `nextRun`。
+
+**已知限制：**
+
+- schedule row 会持久化到 SQLite，但进程重启后暂不自动 hydrate timer；重启后需要后续设计按项目实例恢复 timer。
+- cron 表达式使用服务端本地时区，只支持标准 5 字段 cron，不支持自然语言。
+
+**Rebase 风险：** 中 — 触及 `SessionPrompt`、`ToolRegistry`、HTTP API group/handler、DB schema 和 app 会话页。上游若重构 session route、tool registry 或 bus/event 机制，需重点复查 runner 是否仍能在正确的 instance context 内执行。
+
+---
+
 ## 行为不变量
 
 每次 rebase 后，发布前请验证以下场景：
@@ -120,6 +154,7 @@ cd packages/app && bun run build
 | 7 | 设置本地服务器凭证后重启，凭证保持 | 配置在重启后仍存在 |
 | 8 | 在一个浏览器标签页中打开项目，其他标签页同步更新 | `project.opened.updated` 事件触发同步 |
 | 9 | 开发模式下，远程浏览器看到 fork 版 UI（左下角有服务器图标） | 不是上游 `app.opencode.ai` 的版本 |
+| 10 | 创建 1 分钟 schedule 并等待触发 | 会话中出现 metadata.source=`schedule` 的用户消息，`GET /schedule` 返回 `lastRunStatus: "ran"` |
 
 快速自动化检查（在本地 4096 端口服务运行时执行）：
 
@@ -133,3 +168,17 @@ curl -sI http://127.0.0.1:4096/global/config | grep -i www-authenticate
 ```
 
 预期输出：`200`、`200`、`www-authenticate: Bearer realm="Secure Area"`。
+
+Schedule HTTP 冒烟检查（替换端口、凭证和 session id；真实触发需要等到下一分钟边界）：
+
+```sh
+BASE=http://127.0.0.1:4096
+AUTH='opencode:<password>'
+SID=$(curl -sS -u "$AUTH" -H 'content-type: application/json' -X POST "$BASE/session" -d '{}' | jq -r .id)
+SCH=$(curl -sS -u "$AUTH" -H 'content-type: application/json' -X POST "$BASE/session/$SID/schedule" \
+  -d '{"expression":"* * * * *","message":"schedule smoke test"}' | jq -r .id)
+curl -sS -u "$AUTH" "$BASE/session/$SID/schedule"
+# 等待下一分钟触发后，预期 lastRunStatus 为 "ran"
+curl -sS -u "$AUTH" "$BASE/session/$SID/schedule" | jq '.[0].lastRunStatus'
+curl -sS -u "$AUTH" -X DELETE "$BASE/session/$SID/schedule/$SCH"
+```

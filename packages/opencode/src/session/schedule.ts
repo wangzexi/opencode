@@ -5,7 +5,7 @@ import { Identifier } from "@/id/id"
 import { Database } from "@/storage/db"
 import * as Log from "@opencode-ai/core/util/log"
 import { Cron } from "croner"
-import { eq, sql as drizzleSql } from "drizzle-orm"
+import { desc, eq, sql as drizzleSql } from "drizzle-orm"
 import { Context, Effect, Layer, Schema } from "effect"
 import { SessionID } from "./schema"
 import { ScheduleRunTable, ScheduleTable } from "./schedule.sql"
@@ -201,10 +201,6 @@ export const layer = Layer.effect(
               expression: ScheduleTable.expression,
               message: ScheduleTable.message,
               created_at: ScheduleTable.created_at,
-              lastRanAt: drizzleSql<
-                number | null
-              >`(SELECT ran_at FROM schedule_run WHERE schedule_id = ${ScheduleTable.id} AND status = 'ran' ORDER BY ran_at DESC LIMIT 1)`,
-              lastRunStatus: drizzleSql<RunStatus | null>`(SELECT status FROM schedule_run WHERE schedule_id = ${ScheduleTable.id} ORDER BY ran_at DESC LIMIT 1)`,
             })
             .from(ScheduleTable)
             .where(eq(ScheduleTable.session_id, sessionID))
@@ -212,6 +208,18 @@ export const layer = Layer.effect(
         ),
       )
       return rows.map((row) => {
+        const lastRun = Database.use((db) =>
+          db
+            .select({
+              ran_at: ScheduleRunTable.ran_at,
+              status: ScheduleRunTable.status,
+            })
+            .from(ScheduleRunTable)
+            .where(eq(ScheduleRunTable.schedule_id, row.id))
+            .orderBy(desc(ScheduleRunTable.ran_at))
+            .limit(1)
+            .get(),
+        )
         const timer = timers.get(row.id as ID)
         const nextRun = timer?.cron.nextRun()?.getTime() ?? null
         return {
@@ -220,8 +228,8 @@ export const layer = Layer.effect(
           expression: row.expression,
           message: row.message,
           createdAt: row.created_at,
-          lastRanAt: row.lastRanAt ?? null,
-          lastRunStatus: row.lastRunStatus ?? null,
+          lastRanAt: lastRun?.ran_at ?? null,
+          lastRunStatus: (lastRun?.status as RunStatus | undefined) ?? null,
           nextRun,
         }
       })

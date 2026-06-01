@@ -55,7 +55,7 @@ const registryLayer = (opts: RegistryLayerOptions = {}) =>
       Layer.provide(configLayer),
       Layer.provide(opts.plugin ?? Plugin.defaultLayer),
       Layer.provide(Question.defaultLayer),
-      Layer.provide(Layer.mergeAll(Todo.defaultLayer, Schedule.defaultLayer)),
+      Layer.provide(Layer.mergeAll(Todo.defaultLayer, Schedule.layer)),
       Layer.provide(Skill.defaultLayer),
       Layer.provide(Agent.defaultLayer),
       Layer.provide(Session.defaultLayer),

@@ -32,6 +32,7 @@ import {
   PermissionResponsePayload,
   PromptPayload,
   RevertPayload,
+  SchedulePayload,
   ShellPayload,
   SummarizePayload,
   UpdatePayload,
@@ -100,6 +101,20 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const schedules = Effect.fn("SessionHttpApi.schedules")(function* (ctx: { params: { sessionID: SessionID } }) {
       yield* requireSession(ctx.params.sessionID)
       return yield* scheduleSvc.list(ctx.params.sessionID)
+    })
+
+    const createSchedule = Effect.fn("SessionHttpApi.createSchedule")(function* (ctx: {
+      params: { sessionID: SessionID }
+      payload: typeof SchedulePayload.Type
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      return yield* scheduleSvc
+        .create({
+          sessionID: ctx.params.sessionID,
+          expression: ctx.payload.expression,
+          message: ctx.payload.message,
+        })
+        .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
     })
 
     const deleteSchedule = Effect.fn("SessionHttpApi.deleteSchedule")(function* (ctx: {
@@ -435,6 +450,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("children", children)
       .handle("todo", todo)
       .handle("schedules", schedules)
+      .handle("createSchedule", createSchedule)
       .handle("deleteSchedule", deleteSchedule)
       .handle("diff", diff)
       .handle("messages", messages)

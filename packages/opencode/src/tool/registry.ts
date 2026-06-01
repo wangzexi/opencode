@@ -378,7 +378,7 @@ export const defaultLayer = Layer.suspend(() =>
       Layer.provide(Config.defaultLayer),
       Layer.provide(Plugin.defaultLayer),
       Layer.provide(Question.defaultLayer),
-      Layer.provide(Layer.mergeAll(Todo.defaultLayer, Schedule.defaultLayer)),
+      Layer.provide(Layer.mergeAll(Todo.defaultLayer, Schedule.layer)),
       Layer.provide(Skill.defaultLayer),
       Layer.provide(Agent.defaultLayer),
       Layer.provide(Session.defaultLayer),

@@ -24,6 +24,57 @@ export type ConfigProjectEntry = {
 function isLocalHost(url: string) {
   const host = url.replace(/^https?:\/\//, "").split(":")[0]
   if (host === "localhost" || host === "127.0.0.1") return "local"
+  return undefined
+}
+
+function sameIcon(a: ConfigProjectEntry["icon"], b: ConfigProjectEntry["icon"]) {
+  return (a?.color ?? "") === (b?.color ?? "") && (a?.override ?? "") === (b?.override ?? "")
+}
+
+function sameCommands(a: ConfigProjectEntry["commands"], b: ConfigProjectEntry["commands"]) {
+  return (a?.start ?? "") === (b?.start ?? "")
+}
+
+function sameEntries(a: ConfigProjectEntry[] | undefined, b: ConfigProjectEntry[]) {
+  if (!a) return false
+  if (a.length !== b.length) return false
+  return a.every(
+    (entry, index) =>
+      entry.worktree === b[index]?.worktree &&
+      (entry.name ?? "") === (b[index]?.name ?? "") &&
+      sameIcon(entry.icon, b[index]?.icon) &&
+      sameCommands(entry.commands, b[index]?.commands),
+  )
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function isOptionalString(value: unknown) {
+  return value === undefined || typeof value === "string"
+}
+
+function isEntry(value: unknown): value is ConfigProjectEntry {
+  if (!isRecord(value)) return false
+  if (typeof value.worktree !== "string") return false
+  if (!isOptionalString(value.name)) return false
+  if (value.icon !== undefined) {
+    if (!isRecord(value.icon)) return false
+    if (!isOptionalString(value.icon.color)) return false
+    if (!isOptionalString(value.icon.override)) return false
+  }
+  if (value.commands !== undefined) {
+    if (!isRecord(value.commands)) return false
+    if (!isOptionalString(value.commands.start)) return false
+  }
+  return true
+}
+
+function asEntries(value: unknown) {
+  if (!Array.isArray(value)) return undefined
+  if (!value.every(isEntry)) return undefined
+  return value
 }
 
 export const { use: useOpenedProjects, provider: OpenedProjectsProvider } = createSimpleContext({
@@ -45,7 +96,7 @@ export const { use: useOpenedProjects, provider: OpenedProjectsProvider } = crea
 
     const getSdk = () => {
       const current = server.current
-      if (!current) return
+      if (!current) return undefined
       return createSdkForServer({
         server: current.http,
         fetch: platform.fetch,
@@ -57,7 +108,13 @@ export const { use: useOpenedProjects, provider: OpenedProjectsProvider } = crea
     const query = createQuery(() => ({
       queryKey: queryKey(),
       enabled: ready() && !!server.key && !!server.current && server.healthy() === true,
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
+      structuralSharing: (previous: unknown, next: unknown) => {
+        const nextEntries = asEntries(next)
+        if (!nextEntries) return next
+        const reuse = sameEntries(asEntries(previous), nextEntries)
+        return reuse ? previous : next
+      },
       queryFn: async () => {
         const sdk = getSdk()
         if (!sdk) return []
@@ -67,7 +124,9 @@ export const { use: useOpenedProjects, provider: OpenedProjectsProvider } = crea
     }))
 
     const setEntries = (entries: ConfigProjectEntry[]) => {
-      queryClient.setQueryData(queryKey(), entries)
+      queryClient.setQueryData<ConfigProjectEntry[]>(queryKey(), (previous) =>
+        sameEntries(previous, entries) ? previous : entries,
+      )
     }
 
     const entries = createMemo(() => query.data ?? [])
@@ -148,7 +207,7 @@ export const { use: useOpenedProjects, provider: OpenedProjectsProvider } = crea
       },
       last() {
         const key = lastProjectKey()
-        if (!key) return
+        if (!key) return undefined
         return store.lastProject[key]
       },
       touch(directory: string) {

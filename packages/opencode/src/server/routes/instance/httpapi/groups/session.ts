@@ -72,6 +72,10 @@ export const PromptPayload = Schema.Struct(Struct.omit(SessionPrompt.PromptInput
 export const CommandPayload = Schema.Struct(Struct.omit(SessionPrompt.CommandInput.fields, ["sessionID"]))
 export const ShellPayload = Schema.Struct(Struct.omit(SessionPrompt.ShellInput.fields, ["sessionID"]))
 export const RevertPayload = Schema.Struct(Struct.omit(SessionRevert.RevertInput.fields, ["sessionID"]))
+export const SchedulePayload = Schema.Struct({
+  expression: Schema.String,
+  message: Schema.String,
+})
 export const PermissionResponsePayload = Schema.Struct({
   response: PermissionV1.Reply,
 })
@@ -83,6 +87,7 @@ export const SessionPaths = {
   children: `${root}/:sessionID/children`,
   todo: `${root}/:sessionID/todo`,
   schedules: `${root}/:sessionID/schedule`,
+  createSchedule: `${root}/:sessionID/schedule`,
   deleteSchedule: `${root}/:sessionID/schedule/:scheduleID`,
   diff: `${root}/:sessionID/diff`,
   messages: `${root}/:sessionID/message`,
@@ -179,6 +184,19 @@ export const SessionApi = HttpApi.make("session")
             summary: "List session scheduled tasks",
             description:
               "Retrieve the scheduled tasks (cron-driven recurring messages) configured for the specified session.",
+          }),
+        ),
+        HttpApiEndpoint.post("createSchedule", SessionPaths.createSchedule, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          payload: SchedulePayload,
+          success: described(Schedule.Info, "Created scheduled task"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.createSchedule",
+            summary: "Create session scheduled task",
+            description: "Create a cron-driven recurring message for the specified session.",
           }),
         ),
         HttpApiEndpoint.delete("deleteSchedule", SessionPaths.deleteSchedule, {

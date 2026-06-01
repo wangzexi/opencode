@@ -1157,8 +1157,8 @@ export function UserMessageDisplay(props: { message: UserMessage; parts: PartTyp
           <Show when={textPart()?.metadata?.["source"] === "schedule"}>
             <div data-slot="user-message-scheduled-badge" class="mb-1">
               <span class="inline-flex items-center gap-1 px-2 py-0.5 text-11-strong rounded bg-icon-info-base/15 text-icon-info-base">
-                <span aria-hidden="true">⏰</span>
-                <span>Scheduled</span>
+                <Icon name="clock" size="small" />
+                <span>{i18n.t("ui.message.scheduled")}</span>
               </span>
             </div>
           </Show>
